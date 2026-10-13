@@ -1,0 +1,82 @@
+<!--
+  Christopher Payne — SGI (Solutions Group International) Email Signature
+  Laid out to match the Blue Line "signature 2" reference: no card border/shadow,
+  plain white background, vertical divider line, wide logo stacked above the name.
+  No icon rail (dropped per your earlier call) — just the divider line on its own.
+
+  ASSETS: sgi-signature-assets/
+    sgi-alternator.gif      - the globe↔headshot loop. Whole face (and whole
+                               globe) in a genuinely complete circle at full
+                               view now — fixed a gap that was still sneaking
+                               through at the strip seams. Gaps open and close
+                               per strip, in sync with that strip's own wipe —
+                               the image breaks apart progressively as the
+                               wipe reaches each section, instead of all the
+                               white lines fading in/out together.
+                               210x260 (displayed 160 wide / 198 auto height), ~139KB.
+    sgi-logo-wide-spin.gif  - the wide SGI logo with the globe icon spinning
+                               continuously (text stays still). True sphere
+                               rotation — surface compresses smoothly toward
+                               the edge and reopens on the other side, with
+                               each horizontal band compressing at its own
+                               rate and tapering out cleanly (fixed a bug
+                               that was flattening the top/bottom into
+                               square-ish bars). About 4.5s per rotation.
+                               Replaces the old static sgi-logo-wide.png.
+                               297x42 (displayed 240 wide / 34 auto height), ~27KB.
+    sgi-logo-wide.png       - static version, kept in case you ever want the
+                               non-animated logo instead — not currently wired in.
+
+  HOSTING: served from your GitHub repo (github.com/brentoncpayne/sgi-signatures)
+  via raw.githubusercontent.com — verified both URLs load the right bytes.
+  To update an asset later: upload the new file to that repo with the same
+  filename and it overwrites in place, no HTML changes needed.
+
+  ANIMATION CAVEAT: Outlook desktop does not animate GIFs for recipients by
+  default — it shows the first frame (the globe) frozen. Animates normally in
+  Gmail, Apple Mail, and most other clients.
+-->
+<table cellpadding="0" cellspacing="0" border="0" role="presentation" style="font-family: Arial, Helvetica, sans-serif; background-color: #ffffff; color: #0a0a0a;">
+  <tr>
+
+    <!-- Globe / headshot alternator -->
+    <td valign="middle" style="width: 170px; padding-right: 24px;">
+      <img src="https://raw.githubusercontent.com/brentoncpayne/sgi-signatures/main/sgi-alternator.gif" alt="Christopher Payne" width="160" height="198" style="display: block; width: 160px; height: auto; border: 0;" />
+    </td>
+
+    <!-- Divider -->
+    <td style="width: 4px; background-color: #23385C; line-height: 1px; font-size: 1px;">&nbsp;</td>
+
+    <!-- Logo + name/title/contact -->
+    <td valign="top" style="padding-left: 24px;">
+      <table cellpadding="0" cellspacing="0" border="0" role="presentation">
+        <tr>
+          <td style="padding-bottom: 14px;">
+            <img src="https://raw.githubusercontent.com/brentoncpayne/sgi-signatures/main/sgi-logo-wide-spin.gif" alt="Solutions Group International" width="240" height="34" style="display: block; border: 0;" />
+          </td>
+        </tr>
+        <tr>
+          <td style="font-family: Arial, Helvetica, sans-serif; font-size: 22px; font-weight: 800; color: #0a0a0a; line-height: 1.2;">
+            Christopher Payne
+          </td>
+        </tr>
+        <tr>
+          <td style="font-family: Arial, Helvetica, sans-serif; font-size: 16px; font-weight: 800; color: #607830; padding-bottom: 14px;">
+            Senior Site Lead
+          </td>
+        </tr>
+        <tr>
+          <td style="font-family: Arial, Helvetica, sans-serif; font-size: 14px; color: #0a0a0a; padding-bottom: 2px;">
+            <a href="tel:7733861911" style="color: #0a0a0a; text-decoration: none;">773-386-1911</a>
+          </td>
+        </tr>
+        <tr>
+          <td style="font-family: Arial, Helvetica, sans-serif; font-size: 14px;">
+            <a href="mailto:cpayne@solutionsgroupinternational.com" style="color: #23385C; text-decoration: none;">cpayne@solutionsgroupinternational.com</a>
+          </td>
+        </tr>
+      </table>
+    </td>
+
+  </tr>
+</table>
