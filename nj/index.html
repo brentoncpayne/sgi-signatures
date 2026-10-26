@@ -184,7 +184,8 @@ textarea{min-height:64px;resize:vertical}
   <button class="tab" data-tab="pool">Staffing pool</button>
   <button class="tab" data-tab="escorts">Escorts</button>
   <button class="tab" data-tab="rooms">Hotel rooms</button>
-  <button class="tab" data-tab="chat" id="chatTab">Team chat</button>
+  <button class="tab" data-tab="chat" id="chatTab">Site chat</button>
+  <button class="tab" data-tab="dm" id="dmTab">Messages</button>
   <button class="tab" data-tab="cars">Rental cars</button>
   <button class="tab" data-tab="teams">Partners</button>
   <button class="tab" data-tab="report">SOC report</button>
@@ -200,7 +201,7 @@ textarea{min-height:64px;resize:vertical}
 const $ = (s, r=document) => r.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const uid = p => p + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
-const S = { escorts:{}, rooms:{}, cars:{}, teams:{}, site:{}, checkins:{}, chat:{}, pool:{}, weeks:{} };
+const S = { escorts:{}, rooms:{}, cars:{}, teams:{}, site:{}, checkins:{}, chat:{}, pool:{}, weeks:{}, dm:{} };
 const P = { q:"", grp:"all", status:"avail", sel:new Set(), qs:false };
 const R = { escorts:{} };
 let ESCORT_ID=null, HALT=""; const newToken=()=>{ const a=new Uint8Array(18); crypto.getRandomValues(a); return Array.from(a,b=>b.toString(36).padStart(2,"0")).join("").slice(0,24); };
@@ -340,7 +341,8 @@ function renderHeader(){
   $("#switchView").hidden = !isAdmin;
   $("#switchView").textContent = viewMode==="admin" ? "Escort preview" : "Back to admin";
   $("#tabs").hidden = viewMode!=="admin";
-  const un=unreadCount(); $("#chatTab").innerHTML = "Team chat" + (un&&!(viewMode==="admin"&&tab==="chat")?`<span class="unread">${un}</span>`:"");
+  const un=unreadCount(); $("#chatTab").innerHTML = "Site chat" + (un&&!(viewMode==="admin"&&tab==="chat")?`<span class="unread">${un}</span>`:"");
+  const dun=isAdmin?dmUnreadTotal():0; $("#dmTab").innerHTML = "Messages" + (dun?`<span class="unread">${dun}</span>`:"");
   document.querySelectorAll(".tab").forEach(b=>b.setAttribute("aria-selected", b.dataset.tab===tab));
 }
 function periodLabel(){
@@ -353,7 +355,7 @@ function render(){
   const app=$("#app");
   if(!db){ app.innerHTML=`<div class="panel"><div class="empty-state"><strong>Loading…</strong><span>Connecting to the site board.</span></div></div>`; return; }
   if(viewMode==="escort") return renderEscortView(app);
-  ({overview:rOverview, week:rWeek, chat:rChat, pool:rPool, escorts:rEscorts, rooms:rRooms, cars:rCars, teams:rTeams, report:rReport, settings:rSettings})[tab](app);
+  ({overview:rOverview, week:rWeek, chat:rChat, dm:rDM, pool:rPool, escorts:rEscorts, rooms:rRooms, cars:rCars, teams:rTeams, report:rReport, settings:rSettings})[tab](app);
 }
 
 /* ---------- ADMIN: overview ---------- */
@@ -759,6 +761,59 @@ function dirHTML(q){
 }
 function bindDir(){ const q=$("#dirQ"); if(q) q.oninput=()=>{ $("#dirOut").innerHTML=dirHTML(q.value); }; }
 
+/* ---------- private messages: escort <-> site lead ---------- */
+const dmMsgs = id => (S.dm[id]?.msgs||[]);
+const dmSeenKey = id => "njsb_dm_"+id;
+function dmUnread(id){ const seen=ls.get(dmSeenKey(id))||""; return dmMsgs(id).filter(m=>m.t>seen && m.from!==(isAdmin?"lead":"escort")).length; }
+function dmUnreadTotal(){ return Object.keys(S.dm).reduce((n,id)=>n+dmUnread(id),0); }
+function dmMarkSeen(id){ const ms=dmMsgs(id); if(ms.length) ls.set(dmSeenKey(id), ms[ms.length-1].t); }
+function dmThreadHTML(id){
+  const ms=dmMsgs(id);
+  if(!ms.length) return `<div class="empty-state"><strong>No messages yet</strong><span>${isAdmin?"Send the first message.":"Only your site lead sees what you write here."}</span></div>`;
+  return ms.map(m=>{ const mine = isAdmin ? m.from==="lead" : m.from==="escort";
+    const who = mine ? "You" : (m.from==="lead" ? esc(S.site.siteLead||"Site lead")+" · Site lead" : esc(name(id)));
+    return `<div class="msg ${mine?"mine":""} ${m.from==="lead"?"lead":""}"><div class="who">${who} · <span class="mono">${fISO(m.t)}</span></div><div class="txt">${esc(m.text)}</div></div>`; }).join("");
+}
+function dmPanelHTML(id, title){
+  return `<div class="panel chat"><div class="hd"><h3>${esc(title)}</h3><span class="note">Private · only ${isAdmin?"you and "+esc(name(id)):"you and your site lead"}</span></div>
+    <div class="chat-log" id="dmLog" style="min-height:160px">${dmThreadHTML(id)}</div>
+    <form class="chat-in" id="dmForm"><textarea id="dmIn" placeholder="${isAdmin?"Reply to "+esc(name(id)):"Message your site lead"}" aria-label="Private message" maxlength="1000"></textarea><button class="btn primary" id="dmSend" type="submit">Send</button></form></div>`;
+}
+function bindDM(id){
+  const log=$("#dmLog"); if(!log) return; log.scrollTop=log.scrollHeight; dmMarkSeen(id); renderHeader();
+  const inp=$("#dmIn");
+  inp.onkeydown=e=>{ if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); $("#dmForm").requestSubmit(); } };
+  $("#dmForm").onsubmit=async e=>{ e.preventDefault(); const t=inp.value.trim(); if(!t) return; $("#dmSend").disabled=true;
+    if(await sendDM(id,t)){ inp.value=""; dirty=false; updateDMLog(id); } $("#dmSend").disabled=false; inp.focus(); };
+}
+function updateDMLog(id){ const log=$("#dmLog"); if(!log) return; const atBottom=log.scrollHeight-log.scrollTop-log.clientHeight<60; log.innerHTML=dmThreadHTML(id); if(atBottom) log.scrollTop=log.scrollHeight; dmMarkSeen(id); renderHeader(); }
+async function sendDM(id, text){
+  const cur=S.dm[id]||{}; const m={id:uid("m"), t:new Date().toISOString(), from:isAdmin?"lead":"escort", text:text.slice(0,1000)};
+  try{ await db.collection("dm").doc(id).set({...cur, escortId:id, msgs:[...(cur.msgs||[]).slice(-199), m]}); return true; }
+  catch(e){ toast("Message not sent: "+(e.message||e.code)); return false; }
+}
+let DM_OPEN="";
+function rDM(app){
+  const es=escorts().filter(e=>status(e).k!=="can");
+  const threads=Object.keys(S.dm).filter(id=>dmMsgs(id).length && S.escorts[id]).sort((a,b)=>(dmMsgs(b).slice(-1)[0]?.t||"").localeCompare(dmMsgs(a).slice(-1)[0]?.t||""));
+  if(!DM_OPEN && threads.length) DM_OPEN=threads[0];
+  if(DM_OPEN) dmMarkSeen(DM_OPEN);
+  const noThread=es.filter(e=>!threads.includes(e.id));
+  app.innerHTML=`<div class="grid2 chatgrid">
+    ${DM_OPEN && S.escorts[DM_OPEN] ? dmPanelHTML(DM_OPEN, name(DM_OPEN)) : `<div class="panel"><div class="empty-state"><strong>No private messages yet</strong><span>Escorts can message you from their page. Pick someone on the right to start a conversation.</span></div></div>`}
+    <div style="display:grid;gap:20px;align-content:start">
+      <div class="panel"><div class="hd"><h3>Conversations</h3></div><div class="bd" style="display:grid;gap:6px">
+        ${threads.length? threads.map(id=>{ const last=dmMsgs(id).slice(-1)[0]; const u=dmUnread(id); return `<button class="btn" data-dm-open="${id}" style="text-align:left;${id===DM_OPEN?"border-color:var(--accent)":""}"><b>${esc(name(id))}</b>${u?`<span class="unread">${u}</span>`:""}<div class="note" style="font-weight:400;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${last.from==="lead"?"You: ":""}${esc(last.text)}</div></button>`; }).join("") : `<p class="muted" style="margin:0">None yet.</p>`}
+      </div></div>
+      <div class="panel"><div class="hd"><h3>Start a conversation</h3></div><div class="bd">
+        <select id="dmStart" aria-label="Choose escort">${opt("","Choose an escort…",true)}${noThread.sort((a,b)=>(a.name||"").localeCompare(b.name||"")).map(e=>opt(e.id,e.name,false)).join("")}</select>
+      </div></div>
+    </div></div>`;
+  if(DM_OPEN && S.escorts[DM_OPEN]) bindDM(DM_OPEN);
+  app.querySelectorAll("[data-dm-open]").forEach(b=>b.onclick=()=>{ DM_OPEN=b.dataset.dmOpen; render(); });
+  $("#dmStart").onchange=e=>{ if(e.target.value){ DM_OPEN=e.target.value; dirty=false; render(); } };
+}
+
 /* ---------- team chat ---------- */
 const onSiteEscorts = () => escorts().filter(e=>status(e).k==="on");
 function allMsgs(){
@@ -776,10 +831,10 @@ function msgsHTML(){
 }
 function chatPanelHTML(){
   const on=onSiteEscorts();
-  return `<div class="panel chat"><div class="hd"><h3>Team chat</h3><span class="note">${on.length} on site</span><div class="spacer"></div>
+  return `<div class="panel chat"><div class="hd"><h3>NJ site chat</h3><span class="note">Everyone on site · ${on.length}</span><div class="spacer"></div>
     ${isAdmin?`<button class="btn sm" id="chatRooms">Post room list</button><button class="btn sm" id="chatPhones">Copy phone numbers</button>`:""}</div>
     <div class="chat-log" id="chatLog" aria-live="polite">${msgsHTML()}</div>
-    <form class="chat-in" id="chatForm"><textarea id="chatIn" placeholder="Message everyone on site" aria-label="Message" maxlength="1000"></textarea><button class="btn primary" id="chatSend" type="submit">Send</button></form></div>`;
+    <form class="chat-in" id="chatForm"><textarea id="chatIn" placeholder="Message everyone on site in NJ" aria-label="Message" maxlength="1000"></textarea><button class="btn primary" id="chatSend" type="submit">Send</button></form></div>`;
 }
 function bindChat(){
   const log=$("#chatLog"); if(!log) return; log.scrollTop=log.scrollHeight; markSeen();
@@ -1110,11 +1165,12 @@ function renderEscortView(app){
       ${car.agency?`<dt>Agency</dt><dd>${esc(car.agency)}</dd>`:""}
       ${car.returnAt?`<dt>Return</dt><dd class="mono">${fDT(car.returnAt)}</dd>`:""}</dl>`), ...partnerReported.map(p=>`<dl class="kv"><dt>In name of</dt><dd><b>${p.__me?"You":esc(p.name)}</b></dd>${carIn(p).vehicle?`<dt>Vehicle</dt><dd>${esc(carIn(p).vehicle)}</dd>`:""}</dl>`)].join('<hr style="border:0;border-top:1px solid var(--line);margin:0">') :`<p class="muted" style="margin:0">No rental car in your or your partner's name.</p>`}</div></div>
     ${e.notes?`<div class="panel"><div class="hd"><h3>Notes from site lead</h3></div><div class="bd">${esc(e.notes)}</div></div>`:""}
-    ${mine?.escortId===e.id && chatAllowed() ? chatPanelHTML() : `<div class="panel"><div class="hd"><h3>Team chat</h3></div><div class="bd"><p class="muted" style="margin:0">${mine?.escortId===e.id ? "The team chat opens once you're checked in as on site." : "Tap “Yes, this is me” above to unlock the team chat once you're on site."}</p></div></div>`}
+    ${ESCORT_ID ? dmPanelHTML(ESCORT_ID, "Message your site lead") : ""}
+    ${mine?.escortId===e.id && chatAllowed() ? chatPanelHTML() : `<div class="panel"><div class="hd"><h3>NJ site chat</h3></div><div class="bd"><p class="muted" style="margin:0">${mine?.escortId===e.id ? "The site chat opens once you're checked in as on site." : "The site chat opens once you're on site."}</p></div></div>`}
     ${status(e).k==="on"?`<div class="panel"><div class="hd"><h3>Who's in what room</h3></div><div class="bd" style="display:grid;gap:10px"><input id="dirQ" type="search" placeholder="Type a name or room number" aria-label="Search rooms"><div id="dirOut">${dirHTML("")}</div></div></div>`:""}
     ${ESCORT_ID?"":`<button class="btn" data-pick="" style="justify-self:center">Preview another escort</button>`}
   </div>`;
-  bindChat(); bindDir();
+  bindChat(); bindDir(); if(ESCORT_ID) bindDM(ESCORT_ID);
   const claim = async (extra) => {
     if(!ESCORT_ID){ toast("Preview only. Nothing was saved."); return false; }
     try{ await db.collection("checkins").doc(ESCORT_ID).set(extra||{}); return true; }
@@ -1302,6 +1358,7 @@ function escortDB(sb, token){
     set: async data=>{
       if(c==="checkins"){ const {error}=await sb.rpc("escort_submit",{p_token:token,p_patch:data}); if(error) throw refErr("save_failed",error.message); await api.refresh(); return; }
       if(c==="chat"){ const last=(data.msgs||[]).slice(-1)[0]; const {error}=await sb.rpc("escort_chat_post",{p_token:token,p_text:last?.text||""}); if(error) throw refErr("save_failed",error.message); await api.refresh(); return; }
+      if(c==="dm"){ const last=(data.msgs||[]).slice(-1)[0]; const {error}=await sb.rpc("escort_dm_post",{p_token:token,p_text:last?.text||""}); if(error) throw refErr("save_failed",error.message); await api.refresh(); return; }
       return denied(); },
     update: async patch=> c==="checkins" ? docRef(c,id).set(patch) : denied(),
     delete: denied,
@@ -1311,8 +1368,8 @@ function escortDB(sb, token){
     collection:c=>({ doc:id=>docRef(c,id), onSnapshot:(fn)=>{ subs.push({c,fn}); fn(makeSnap(col(c))); return ()=>{}; } }),
     doc:path=>{ const [c,id]=path.split("/"); return docRef(c,id); },
     async refresh(){ const {data,error}=await sb.rpc("escort_view",{p_token:token}); if(error) throw error; if(!data) return false;
-      api.me=data.me; for(const k of ["escorts","rooms","teams","cars","checkins","chat"]) cache[k]=data[k]||{}; cache.config={site:data.site||{}}; cache.weeks={}; cache.pool={};
-      ["escorts","rooms","teams","cars","checkins","chat","config","weeks","pool"].forEach(emit); return true; }
+      api.me=data.me; for(const k of ["escorts","rooms","teams","cars","checkins","chat"]) cache[k]=data[k]||{}; cache.config={site:data.site||{}}; cache.weeks={}; cache.pool={}; cache.dm=data.dm&&Object.keys(data.dm).length?{[data.me]:data.dm}:{};
+      ["escorts","rooms","teams","cars","checkins","chat","config","weeks","pool","dm"].forEach(emit); return true; }
   };
   return api;
 }
@@ -1325,6 +1382,7 @@ function wireStore(){
     snap.docs.forEach(d=>{ const x=d.data()||{}; if(Array.isArray(x.people)) x.people.forEach(p=>{ if(p&&p.id) imp[p.id]={...p,source:x.source||p.source}; }); else own[d.id]=x; });
     S.pool={}; for(const [id,p] of Object.entries({...imp,...own})) if(!p.deleted) S.pool[id]=p; sched(); });
   db.collection("chat").onSnapshot(snap=>{ S.chat={}; snap.docs.forEach(d=>S.chat[d.id]=d.data()); if($("#chatLog")) updateChatLog(); else renderHeader(); });
+  db.collection("dm").onSnapshot(snap=>{ S.dm={}; snap.docs.forEach(d=>S.dm[d.id]=d.data()); const open=isAdmin?DM_OPEN:ESCORT_ID; if($("#dmLog")&&open) updateDMLog(open); else if(isAdmin && tab==="dm") sched(); else renderHeader(); });
   db.collection("checkins").onSnapshot(snap=>{ S.checkins={}; snap.docs.forEach(d=>S.checkins[d.id]=d.data()); merge(); sched(); });
   db.doc("config/site").onSnapshot(d=>{ S.site=d.exists? d.data(): {}; sched(); });
 }
