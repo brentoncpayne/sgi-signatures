@@ -190,6 +190,7 @@ textarea{min-height:64px;resize:vertical}
   <button class="tab" data-tab="teams">Partners</button>
   <button class="tab" data-tab="report">SOC report</button>
   <button class="tab" data-tab="settings">Site settings</button>
+  <button class="tab" data-tab="access" id="accessTab" hidden>Team access</button>
 </div></nav>
 <main><div class="wrap" id="app">
   <div class="panel"><div class="empty-state"><strong>Loading the site roster…</strong><span>Arrivals, departures, rooms, rental cars and partner teams appear here.</span></div></div>
@@ -204,7 +205,9 @@ const uid = p => p + Date.now().toString(36) + Math.random().toString(36).slice(
 const S = { escorts:{}, rooms:{}, cars:{}, teams:{}, site:{}, checkins:{}, chat:{}, pool:{}, weeks:{}, dm:{} };
 const P = { q:"", grp:"all", status:"avail", sel:new Set(), qs:false };
 const R = { escorts:{} };
-let ESCORT_ID=null, HALT=""; const newToken=()=>{ const a=new Uint8Array(18); crypto.getRandomValues(a); return Array.from(a,b=>b.toString(36).padStart(2,"0")).join("").slice(0,24); };
+let ESCORT_ID=null, HALT="", MY_ROLE="", MY_EMAIL="", ROLES=[];
+const ROLE_NAME={owner:"Owner", superadmin:"Super admin", sitelead:"Site lead"};
+const canManage=()=>MY_ROLE==="owner"||MY_ROLE==="superadmin"; const newToken=()=>{ const a=new Uint8Array(18); crypto.getRandomValues(a); return Array.from(a,b=>b.toString(36).padStart(2,"0")).join("").slice(0,24); };
 let db=null, user=null, isAdmin=false, viewMode="escort", tab="overview", downloads=null, myUid=null, weekOff=1, dirty=false, profiles={};
 const ls = { get(k){try{return localStorage.getItem(k)}catch(e){return null}}, set(k,v){try{localStorage.setItem(k,v)}catch(e){}} };
 
@@ -338,7 +341,8 @@ function renderHeader(){
   $("#hdrSite").textContent = (st.siteName||"New Jersey") + " Site";
   $("#hdrSub").textContent = [periodLabel(), st.siteLead? "Site lead "+st.siteLead : ""].filter(Boolean).join(" · ") || "Escort roster · lodging · vehicles";
   const img=$("#hdrLogo"); if(st.logo){img.src=st.logo;img.hidden=false;$("#hdrWm").hidden=true}else{img.hidden=true;$("#hdrWm").hidden=false;$("#hdrWm").textContent=st.client||"SGI"}
-  $("#modeTag").textContent = viewMode==="admin" ? "Admin" : "Escort view";
+  $("#modeTag").textContent = viewMode==="admin" ? (ROLE_NAME[MY_ROLE]||"Admin") : "Escort view";
+  if($("#accessTab")) $("#accessTab").hidden = !canManage();
   $("#switchView").hidden = !isAdmin;
   $("#switchView").textContent = viewMode==="admin" ? "Escort preview" : "Back to admin";
   $("#tabs").hidden = viewMode!=="admin";
@@ -356,7 +360,7 @@ function render(){
   const app=$("#app");
   if(!db){ app.innerHTML=`<div class="panel"><div class="empty-state"><strong>Loading…</strong><span>Connecting to the site board.</span></div></div>`; return; }
   if(viewMode==="escort") return renderEscortView(app);
-  ({overview:rOverview, week:rWeek, chat:rChat, dm:rDM, pool:rPool, escorts:rEscorts, rooms:rRooms, cars:rCars, teams:rTeams, report:rReport, settings:rSettings})[tab](app);
+  ({overview:rOverview, week:rWeek, chat:rChat, dm:rDM, access:rAccess, pool:rPool, escorts:rEscorts, rooms:rRooms, cars:rCars, teams:rTeams, report:rReport, settings:rSettings})[tab](app);
 }
 
 /* ---------- ADMIN: overview ---------- */
@@ -604,6 +608,36 @@ async function removeEscort(id){
   toast(`${e.name||"Escort"} removed from the roster. Their personal link no longer works.`);
 }
 let DEL_ARM="";
+
+/* ---------- team access (owner / super admin) ---------- */
+async function loadRoles(){ const {data,error}=await window.__sb.from("roles").select("email,role,name,added_by,added_at").order("role").order("email"); if(!error) ROLES=data||[]; return !error; }
+function rAccess(app){
+  if(!canManage()){ app.innerHTML=`<div class="panel"><div class="empty-state"><strong>Owners and super admins only</strong></div></div>`; return; }
+  const allowed = MY_ROLE==="owner" ? ["sitelead","superadmin","owner"] : ["sitelead"];
+  const canEditRow = r => MY_ROLE==="owner" || (MY_ROLE==="superadmin" && r.role==="sitelead");
+  app.innerHTML=`<div class="panel"><div class="hd"><h2>Team access</h2><span class="note">Who can sign in to the site lead side of the board</span></div>
+    <div class="tbl-wrap"><table><thead><tr><th>Name</th><th>Email</th><th>Access</th><th>Added by</th><th></th></tr></thead><tbody>
+    ${ROLES.map(r=>`<tr><td><b>${esc(r.name||"—")}</b>${r.email===MY_EMAIL?' <span class="note">(you)</span>':""}</td><td class="mono">${esc(r.email)}</td><td><span class="pill ${r.role==="sitelead"?"p-grp":"p-on"}">${esc(ROLE_NAME[r.role]||r.role)}</span></td><td class="note">${esc(r.added_by||"")}</td>
+      <td>${canEditRow(r)&&r.email!==MY_EMAIL?`<button class="btn sm danger" data-role-del="${esc(r.email)}">${DEL_ARM==="r:"+r.email?"Tap again to remove":"Remove"}</button>`:""}</td></tr>`).join("")}
+    </tbody></table></div></div>
+  <div class="panel" style="max-width:760px"><div class="hd"><h3>Add a person</h3></div><form class="bd" id="roleForm" style="display:grid;gap:12px">
+    <div class="fg"><label class="f">Name<input id="rl_name" placeholder="e.g. Jane Doe"></label>
+    <label class="f">Email<input id="rl_email" type="email" required placeholder="name@solutionsgroupinternational.com"></label>
+    <label class="f">Access<select id="rl_role">${allowed.map(k=>opt(k,ROLE_NAME[k],k==="sitelead")).join("")}</select></label></div>
+    <div class="row"><button class="btn primary" type="submit">Give access</button><span class="note" id="rl_msg"></span></div>
+    <ol class="steps"><li>Add their email here.</li><li>Send them the board address: <span class="mono">${esc(location.origin+location.pathname)}</span></li><li>They tap <b>First time here? Set your password</b>, use this same email, and confirm the email Supabase sends them.</li></ol>
+    <p class="note" style="margin:0"><b>Site leads</b> run the board. <b>Super admins</b> can also add and remove site leads. ${MY_ROLE==="owner"?"Only owners can add super admins or owners.":"Only the owner can add super admins."}</p>
+  </form></div>`;
+  $("#roleForm").onsubmit=async ev=>{ ev.preventDefault(); const email=v("rl_email").toLowerCase(), role=$("#rl_role").value;
+    if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ $("#rl_msg").textContent="Enter a valid email."; return; }
+    const {error}=await window.__sb.from("roles").upsert({email, role, name:v("rl_name"), added_by:MY_EMAIL});
+    if(error){ $("#rl_msg").textContent="Couldn't add: "+error.message; return; }
+    await loadRoles(); dirty=false; toast(`${email} added as ${ROLE_NAME[role]}`); render(); };
+  app.querySelectorAll("[data-role-del]").forEach(b=>b.onclick=async()=>{ const em=b.dataset.roleDel;
+    if(DEL_ARM!=="r:"+em){ DEL_ARM="r:"+em; render(); setTimeout(()=>{ if(DEL_ARM==="r:"+em){ DEL_ARM=""; render(); } },5000); return; }
+    DEL_ARM=""; const {error}=await window.__sb.from("roles").delete().eq("email",em); if(error) return toast("Couldn't remove: "+error.message);
+    await loadRoles(); toast(`${em} no longer has access`); render(); });
+}
 
 /* ---------- ADMIN: escorts ---------- */
 function rEscorts(app){
@@ -1312,7 +1346,7 @@ document.addEventListener("keydown",e=>{ if(e.key==="Escape") $("#modalRoot").in
 
 /* ---------- boot (Supabase) ---------- */
 $("#app").addEventListener("input", ()=>{ dirty=true; });
-const busy = () => !!$("#modalRoot").innerHTML || dirty || (viewMode==="admin"&&(tab==="settings"||tab==="report"));
+const busy = () => !!$("#modalRoot").innerHTML || dirty || (viewMode==="admin"&&(tab==="settings"||tab==="report"||tab==="access"));
 let raf=0; const sched=()=>{ cancelAnimationFrame(raf); raf=requestAnimationFrame(()=>{ if(!busy()) render(); else renderHeader(); }); };
 const deep = o => JSON.parse(JSON.stringify(o ?? {}));
 function makeSnap(map){ const docs=Object.entries(map).map(([id,data])=>({id, exists:true, data:()=>deep(data)})); return {docs, size:docs.length, empty:!docs.length}; }
@@ -1379,18 +1413,30 @@ function wireStore(){
   db.doc("config/site").onSnapshot(d=>{ S.site=d.exists? d.data(): {}; sched(); });
 }
 
-function loginScreen(sb, msg){
+function loginScreen(sb, msg, mode){
+  mode=mode||"in";
   $("#tabs").hidden=true; $("#switchView").hidden=true; $("#modeTag").textContent="Site lead";
-  $("#app").innerHTML=`<div class="me"><div class="me-hero"><h2>Site lead sign-in</h2><p class="muted" style="margin:0">Escorts don't sign in here. They use the personal link their site lead sends them.</p></div>
+  const title={in:"Site lead sign-in", up:"Set your password", reset:"Reset your password", newpw:"Choose a new password"}[mode];
+  $("#app").innerHTML=`<div class="me"><div class="me-hero"><h2>${title}</h2><p class="muted" style="margin:0">${mode==="up"?"Use the email your manager gave access to.":"Escorts don't sign in here. They use the personal link their site lead sends them."}</p></div>
   <form class="panel" id="loginForm"><div class="bd" style="display:grid;gap:12px">
-    <label class="f">Email<input id="lg_email" type="email" autocomplete="username" required></label>
-    <label class="f">Password<input id="lg_pass" type="password" autocomplete="current-password" required></label>
-    <div class="row"><button class="btn primary" type="submit">Sign in</button><span class="note" id="lg_msg">${esc(msg||"")}</span></div>
+    ${mode!=="newpw"?`<label class="f">Email<input id="lg_email" type="email" autocomplete="username" required></label>`:""}
+    ${mode!=="reset"?`<label class="f">${mode==="in"?"Password":"New password (8+ characters)"}<input id="lg_pass" type="password" minlength="${mode==="in"?1:8}" autocomplete="${mode==="in"?"current-password":"new-password"}" required></label>`:""}
+    <div class="row"><button class="btn primary" type="submit">${{in:"Sign in",up:"Create password",reset:"Email me a reset link",newpw:"Save password"}[mode]}</button><span class="note" id="lg_msg">${esc(msg||"")}</span></div>
+    ${mode==="in"?`<div class="row"><a href="#" id="lg_up">First time here? Set your password</a><span class="muted">·</span><a href="#" id="lg_reset">Forgot password?</a></div>`:mode!=="newpw"?`<a href="#" id="lg_back">Back to sign in</a>`:""}
   </div></form></div>`;
-  $("#loginForm").onsubmit=async ev=>{ ev.preventDefault(); $("#lg_msg").textContent="Signing in…";
-    const {error}=await sb.auth.signInWithPassword({email:v("lg_email"), password:$("#lg_pass").value});
-    if(error){ $("#lg_msg").textContent="That email and password didn't work. Check them and try again."; return; }
-    location.reload(); };
+  const back=$("#lg_back"); if(back) back.onclick=e=>{ e.preventDefault(); loginScreen(sb); };
+  const up=$("#lg_up"); if(up) up.onclick=e=>{ e.preventDefault(); loginScreen(sb,"","up"); };
+  const rs=$("#lg_reset"); if(rs) rs.onclick=e=>{ e.preventDefault(); loginScreen(sb,"","reset"); };
+  const here=location.origin+location.pathname;
+  $("#loginForm").onsubmit=async ev=>{ ev.preventDefault(); const m=$("#lg_msg"); m.textContent="Working…";
+    if(mode==="in"){ const {error}=await sb.auth.signInWithPassword({email:v("lg_email"), password:$("#lg_pass").value});
+      if(error){ m.textContent=/confirm/i.test(error.message)?"Confirm your email first: open the link Supabase emailed you.":"That email and password didn't work. Check them and try again."; return; } location.reload(); }
+    if(mode==="up"){ const {data,error}=await sb.auth.signUp({email:v("lg_email"), password:$("#lg_pass").value, options:{emailRedirectTo:here}});
+      if(error){ m.textContent=/registered|exists/i.test(error.message)?"That email already has a password. Sign in, or use Forgot password.":"Couldn't create it: "+error.message; return; }
+      if(data.session){ location.reload(); return; } m.textContent="Check your email and tap the confirmation link, then come back and sign in."; }
+    if(mode==="reset"){ const {error}=await sb.auth.resetPasswordForEmail(v("lg_email"), {redirectTo:here}); m.textContent=error?"Couldn't send: "+error.message:"If that email has access, a reset link is on its way."; }
+    if(mode==="newpw"){ const {error}=await sb.auth.updateUser({password:$("#lg_pass").value}); if(error){ m.textContent="Couldn't save: "+error.message; return; } location.hash=""; location.reload(); }
+  };
 }
 
 (async()=>{
@@ -1400,7 +1446,7 @@ function loginScreen(sb, msg){
   const sb=window.supabase.createClient(CFG.url, CFG.key);
   window.__sb=sb;
   const token=(location.hash||"").replace(/^#/,"").replace(/^t=/,"");
-  if(token && token.length>=16){
+  if(token && token.length>=16 && !/[=&]/.test(token)){
     /* escort mode: personal link, no login */
     isAdmin=false; viewMode="escort";
     db=escortDB(sb, token); wireStore();
@@ -1414,8 +1460,15 @@ function loginScreen(sb, msg){
     return;
   }
   /* admin mode: Supabase sign-in */
+  let recovering=/type=recovery/.test(location.hash);
+  sb.auth.onAuthStateChange(ev=>{ if(ev==="PASSWORD_RECOVERY"){ recovering=true; loginScreen(sb,"","newpw"); } });
   const {data:{session}}=await sb.auth.getSession();
+  if(recovering){ loginScreen(sb,"","newpw"); return; }
   if(!session){ loginScreen(sb); return; }
+  MY_EMAIL=(session.user?.email||"").toLowerCase();
+  const {data:role}=await sb.rpc("my_role"); MY_ROLE=role||"";
+  if(!MY_ROLE){ $("#tabs").hidden=true; $("#app").innerHTML=`<div class="me"><div class="me-hero"><h2>No access yet</h2><p class="muted" style="margin:0">${esc(MY_EMAIL)} isn't on the board's team list. Ask the owner or a super admin to add you under Team access, then reload.</p><div class="row" style="margin-top:8px"><button class="btn" id="noacc_out">Sign out</button></div></div></div>`; $("#noacc_out").onclick=async()=>{ await sb.auth.signOut(); location.reload(); }; return; }
+  if(canManage()) await loadRoles();
   isAdmin=true; myUid="lead"; viewMode="admin";
   db=adminDB(sb);
   try{ await db.load(); }catch(e){ loginScreen(sb, "Couldn't load the board: "+(e.message||e)); return; }
