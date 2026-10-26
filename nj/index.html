@@ -371,7 +371,7 @@ function rOverview(app){
   const today=new Date(); const tKey=`${today.getFullYear()}-${p2(today.getMonth()+1)}-${p2(today.getDate())}`;
   const upcoming=moves.filter(m=>dayKey(m.at)>=tKey);
   const byDay={}; upcoming.forEach(m=>(byDay[dayKey(m.at)]??=[]).push(m));
-  app.innerHTML=`
+  app.innerHTML=`${frontDeskHTML(true)}
   <div class="stats">
     <div class="stat"><b>${es.length}</b><span>On roster</span></div>
     <div class="stat"><b>${on.length}</b><span>On site now</span></div>
@@ -637,6 +637,7 @@ function rRooms(app){
       <div id="dirOut">${dirHTML("")}</div>
     </div></div>
   </div>
+  ${frontDeskHTML(false)}
   <div class="panel"><div class="hd"><h3>Room servicing</h3><div class="spacer"></div><button class="btn sm" id="svcPost">Post today's service list to chat</button></div><div class="bd">${housekeepingHTML()}</div></div>
   <div class="panel"><div class="hd"><h2>Hotel rooms</h2><span class="muted">${rs.length} rooms · ${rs.reduce((n,r)=>n+roomOcc(r.id).length,0)} of ${rs.length*2} beds filled</span><div class="spacer"></div><button class="btn primary" data-act="newRoom">Add room</button></div>
   <div class="bd">${rs.length? hotels.map(h=>`<div style="display:grid;gap:10px;margin-bottom:18px"><h3>${esc(h)}</h3><div class="cards">${rs.filter(r=>(r.hotel||"Hotel")===h).map(r=>{const occ=roomBeds(r.id).filter(Boolean);return `
@@ -695,6 +696,43 @@ async function markServiced(rid){ const d=todayYMD(), now=new Date().toISOString
   await patch("rooms", rid, {lastServiced:d, serviceNext:"", serviceLog:[...((S.rooms[rid]||{}).serviceLog||[]).slice(-29), d]});
   for(const e of roomOcc(rid)) if(openReq(e) && e.claimedBy){ try{ await db.collection("checkins").doc(e.claimedBy).update({svc:{...e.svc, doneAt:now}}); }catch(err){} }
   toast(`${roomLabel(S.rooms[rid])} marked serviced today`); }
+/* ---------- front desk list (today's room service) ---------- */
+function frontDesk(){
+  const t=todayYMD(), tm=addDays(t,1);
+  const rooms=list("rooms").map(r=>({...r, occ:roomOcc(r.id).filter(e=>status(e).k!=="out")}))
+    .filter(r=>r.occ.length).sort((a,b)=>(a.hotel||"").localeCompare(b.hotel||"")||String(a.number||"").localeCompare(String(b.number||""),undefined,{numeric:true}));
+  const items=[];
+  for(const r of rooms){
+    const reqs=r.occ.filter(openReq).map(e=>({e, r:openReq(e)}));
+    const si=serviceInfo(r), routine=["over","today"].includes(si.k);
+    if(!reqs.length && !routine) continue;
+    let what;
+    if(reqs.some(x=>x.r.type==="Whole room")) what="Whole room";
+    else if(reqs.length) what=[...new Set(reqs.map(x=>x.r.type))].join(" + ");
+    else what="Whole room";
+    const notes=reqs.map(x=>x.r.note).filter(Boolean);
+    items.push({room:r, what, notes, routine:!reqs.length, who:reqs.map(x=>x.e.name), overdue:si.k==="over"&&!reqs.length});
+  }
+  const live=escorts().filter(e=>!["can","out"].includes(status(e).k));
+  const leaving=live.filter(e=>e.departAt && (dayKey(e.departAt)===t || dayKey(e.departAt)===tm));
+  const canStay=leaving.filter(e=>e.stayUntil && e.stayUntil!=="none" && e.stayUntil>dayKey(e.departAt));
+  const hotels=[...new Set(items.map(i=>i.room.hotel||"Hotel"))];
+  const text=`ROOM SERVICE — ${fD(t)}\n`+(items.length? hotels.map(h=>`${h}\n`+items.filter(i=>(i.room.hotel||"Hotel")===h).map(i=>`Rm ${i.room.number} — ${i.what}${i.notes.length?` (${i.notes.join("; ")})`:""}`).join("\n")).join("\n\n") : "No room service needed today.");
+  return {t, items, hotels, leaving, canStay, text};
+}
+function frontDeskHTML(compact){
+  const f=frontDesk();
+  return `<div class="panel"><div class="hd"><h3>Front desk list · ${fD(f.t)}</h3><span class="note">What to give the hotel today</span><div class="spacer"></div>${f.items.length?`<button class="btn sm" data-fd-copy="1">Copy list</button>`:""}${compact?`<button class="btn sm" data-tab-go="rooms">Hotel rooms</button>`:""}</div><div class="bd" style="display:grid;gap:12px">
+    ${f.items.length? f.hotels.map(h=>`<div style="display:grid;gap:6px"><b>${esc(h)}</b>${f.items.filter(i=>(i.room.hotel||"Hotel")===h).map(i=>`
+      <div class="row" style="flex-wrap:nowrap;align-items:flex-start"><span class="mono" style="min-width:64px;font-weight:600">Rm ${esc(i.room.number||"?")}</span>
+        <div style="flex:1;min-width:0"><b>${esc(i.what)}</b>${i.notes.length?` <span class="note">(${esc(i.notes.join("; "))})</span>`:""}
+        <div class="note">${i.routine?(i.overdue?"Routine service, overdue":"Routine service, due today"):"Requested by "+esc(i.who.join(", "))}</div></div>
+        <button class="btn sm" data-serviced="${i.room.id}">Serviced</button></div>`).join("")}</div>`).join("")
+      : `<p class="muted" style="margin:0">No room service needed today. Escort requests and routine service show here as they come in.</p>`}
+    ${f.leaving.length?`<p class="note" style="margin:0"><b>Leaving today or tomorrow:</b> ${esc(f.leaving.map(e=>`${e.name} (${fDT(e.departAt)})`).join(", "))}${f.canStay.length?` · <b>Could stay longer:</b> ${esc(f.canStay.map(e=>`${e.name} to ${fD(e.stayUntil)}`).join(", "))}`:""}</p>`:""}
+  </div></div>`;
+}
+
 function housekeepingHTML(){
   const rs=list("rooms").map(r=>({...r, si:serviceInfo(r), occ:roomOcc(r.id).filter(e=>status(e).k!=="out")}))
     .sort((a,b)=> (a.si.due||"9999").localeCompare(b.si.due||"9999") || roomLabel(a).localeCompare(roomLabel(b),undefined,{numeric:true}));
@@ -1049,7 +1087,7 @@ function renderEscortView(app){
       ${room.notes?`<dt>Notes</dt><dd>${esc(room.notes)}</dd>`:""}</dl>`:`<p class="muted" style="margin:0">No room assigned yet. Your site lead will post it here.</p>`}</div></div>
     ${room?`<div class="panel"><div class="hd"><h3>Request room service</h3></div><div class="bd" style="display:grid;gap:12px">
       ${(()=>{const r=mine?.escortId===e.id&&mine.svc&&!mine.svc.doneAt?mine.svc:null; return r?`<div class="row"><span class="pill p-depart">${esc(r.type)}</span><span>Requested ${fISO(r.at)}${r.note?` — “${esc(r.note)}”`:""}. Send a new one below to change it.</span></div>`:(mine?.svc?.doneAt?`<p class="note" style="margin:0">Last request (${esc(mine.svc.type)}) was completed ${fISO(mine.svc.doneAt)}.</p>`:"");})()}
-      <p class="note" style="margin:0">Pick what the front desk should service. Your site lead gets it in the 0500 morning report.</p>
+      <p class="note" style="margin:0">Pick what the front desk should service. It goes on your site lead's front desk list.</p>
       <div class="fg" role="radiogroup" aria-label="Service type">${SVC_TYPES.map((t,i)=>`<label class="check" style="border:1px solid var(--line);border-radius:6px;padding:10px"><input type="radio" name="svc_type" value="${esc(t)}" ${i===0?"":""}> ${esc(t)}</label>`).join("")}</div>
       <label class="f">Note (optional)<input id="svc_note" placeholder="e.g. Day sleeper, after 1300 please"></label>
       <div class="row"><button class="btn primary" id="svc_send">Send request</button><span class="note" id="svc_msg"></span></div>
@@ -1191,12 +1229,13 @@ function copyText(text, okMsg, markIds){
 }
 /* ---------- events ---------- */
 document.addEventListener("click", ev=>{
-  const t=ev.target.closest("[data-car-from],[data-serviced],[data-wk-save],[data-wk-edit],[data-wk-open],[data-pool-edit],[data-pool-add],[data-wk],[data-invite],[data-mark-inv],[data-copy-all],[data-act],[data-edit-escort],[data-edit-room],[data-edit-car],[data-edit-team],[data-pick],[data-copy],[data-tab],[data-tab-go]");
+  const t=ev.target.closest("[data-fd-copy],[data-car-from],[data-serviced],[data-wk-save],[data-wk-edit],[data-wk-open],[data-pool-edit],[data-pool-add],[data-wk],[data-invite],[data-mark-inv],[data-copy-all],[data-act],[data-edit-escort],[data-edit-room],[data-edit-car],[data-edit-team],[data-pick],[data-copy],[data-tab],[data-tab-go]");
   if(!t) return;
   if(t.matches("a")) ev.preventDefault();
   if(t.dataset.tab||t.dataset.tabGo){ tab=t.dataset.tab||t.dataset.tabGo; ls.set("njsb_tab",tab); return render(); }
   if(viewMode==="admin"){
     if(t.dataset.serviced) return markServiced(t.dataset.serviced);
+    if(t.dataset.fdCopy) return copyText(frontDesk().text, "Front desk list copied", []);
     if(t.dataset.carFrom){ const e=S.escorts[t.dataset.carFrom], c=carIn(e); return save("cars", uid("c"), {vehicle:c.vehicle||"", assignedTo:t.dataset.carFrom, color:"", agency:"", notes:"Reported by escort"}); }
     if(t.dataset.wkSave){ const f=t.dataset.wkSave, n=$("#wk_need_"+f).value, a=$("#wk_armed_"+f).value; if(n===""){ toast("Enter how many escorts are needed"); return; } dirty=false; return save("weeks", f, {needed:+n, armedNeeded:a===""?"":+a, notes:(S.weeks[f]||{}).notes||"", updatedAt:new Date().toISOString()}); }
     if(t.dataset.wkEdit) return editWeekNeed(t.dataset.wkEdit);
