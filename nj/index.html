@@ -71,6 +71,7 @@ h3{font-family:var(--display);font-weight:600;font-size:17px;letter-spacing:.04e
 .btn:hover{background:var(--sunk)}
 .btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
 .btn.primary:hover{filter:brightness(1.08)}
+.btn:disabled{opacity:.45;cursor:not-allowed;filter:none}
 .btn.danger{color:var(--danger)}
 .btn.sm{padding:5px 9px;font-size:12px}
 .btn:focus-visible,.tab:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
@@ -452,9 +453,9 @@ function rWeek(app){
     <div class="panel"><div class="hd"><h3>Add SOC's list</h3></div><div class="bd" style="display:grid;gap:12px">
       <p class="note" style="margin:0">One escort per line. Separate fields with commas or tabs: <span class="mono">Name, phone, arrival date, time</span>. Only the name is required; anything missing defaults to the date below with time TBD. Pasting straight from an email or spreadsheet works.</p>
       <label class="f">Default arrival date<input type="date" id="in_date" value="${esc(w.from)}"></label>
-      <label class="f">Escorts<textarea id="in_list" style="min-height:140px;font-family:var(--mono);font-size:13px" placeholder="J. Rivera, 973-555-0142, 11/2, 1400\nM. Okafor, 201-555-0199, 11/3\nT. Nguyen"></textarea></label>
+      <label class="f">Escorts<textarea id="in_list" style="min-height:140px;font-family:var(--mono);font-size:13px" placeholder="Paste SOC's list here. Example:\nJ. Rivera, 973-555-0142, 11/2, 1400\nM. Okafor, 201-555-0199, 11/3"></textarea></label>
       <div id="in_prev"></div>
-      <div class="row"><button class="btn" id="in_check">Preview</button><button class="btn primary" id="in_add" disabled>Add to roster</button><span class="note" id="in_msg"></span></div>
+      <div class="row"><button class="btn" id="in_check">Preview</button><button class="btn primary" id="in_add">Add to roster</button><span class="note" id="in_msg"></span></div>
     </div></div>
     <div style="display:grid;gap:20px;align-content:start">
       <div class="panel"><div class="hd"><h3>How to invite an escort</h3></div><div class="bd">
@@ -478,8 +479,11 @@ function rWeek(app){
     $("#in_prev").innerHTML = parsed.length? `<div class="tbl-wrap"><table><thead><tr><th>Name</th><th>Phone</th><th>Arrives</th><th></th></tr></thead><tbody>${parsed.map(p=>`<tr><td>${esc(p.name)}</td><td class="mono">${esc(p.phone||"—")}${p.fromPool?' <span class="pill p-grp">from pool</span>':""}</td><td class="t">${p.tbd?fDay(p.arriveAt)+" · time TBD":fDT(p.arriveAt)}</td><td>${p.dup?'<span class="pill p-out">Already on roster</span>':'<span class="pill p-on">New</span>'}</td></tr>`).join("")}</tbody></table></div>` : `<p class="note">No names found.</p>`;
     $("#in_add").disabled=!add.length; $("#in_add").textContent= add.length? `Add ${add.length} to roster` : "Add to roster";
   };
+  $("#in_list").oninput=()=>{ parsed=[]; $("#in_prev").innerHTML=""; $("#in_add").textContent="Add to roster"; $("#in_add").disabled=false; };
   $("#in_add").onclick=async()=>{
-    const add=parsed.filter(p=>!p.dup); if(!add.length) return;
+    if(!parsed.length){ $("#in_check").click(); }
+    if(!$("#in_list").value.trim()){ $("#in_msg").textContent="Paste SOC's list in the box first."; return; }
+    const add=parsed.filter(p=>!p.dup); if(!add.length){ $("#in_msg").textContent="Everyone on that list is already on the roster."; return; }
     $("#in_add").disabled=true; $("#in_msg").textContent="Adding…";
     for(const p of add){ try{ await db.collection("escorts").doc(uid("e")).set({name:p.name,phone:p.phone,arriveAt:p.arriveAt,arriveTbd:p.tbd,socWeek:w.from,addedVia:"SOC list",addedAt:new Date().toISOString()}); }catch(e){ $("#in_msg").textContent="Stopped: "+(e.message||e.code); return; } }
     toast(`Added ${add.length} escort${add.length>1?"s":""}`); dirty=false; render();
