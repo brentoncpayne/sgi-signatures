@@ -242,6 +242,8 @@ function merge(){
   }
   S.escorts=out;
 }
+const isHR = e => { if(!e) return false; if(typeof e.hr218==="boolean") return e.hr218; const d=digits(e.phone); return !!(d && Object.values(S.pool).some(p=>digits(p.phone)===d && (p.groups||[]).includes("HR218"))); };
+const hrPill = e => isHR(e) ? '<span class="pill p-grp" style="margin-left:6px">HR218</span>' : "";
 /* weekly staffing math */
 function weekPlan(w){
   const es=escorts().filter(e=>status(e).k!=="can");
@@ -253,38 +255,37 @@ function weekPlan(w){
   const arrLeaving=arriving.filter(e=>e.departAt && e.departAt<=endTs);
   const req=S.weeks[w.from]||{};
   const needed= req.needed===undefined||req.needed===""? null : +req.needed;
-  const armedNeeded= req.armedNeeded===undefined||req.armedNeeded===""? null : +req.armedNeeded;
+  const hrNeeded= req.hrNeeded===undefined||req.hrNeeded===""? null : +req.hrNeeded;
   const covered=staying.length+arriving.length;
   const open= needed==null? null : Math.max(0, needed-covered);
   const over= needed==null? 0 : Math.max(0, covered-needed);
-  const isArmed=e=>/armed/i.test(e.notes||"") || Object.values(S.pool).some(p=>p.armed && digits(p.phone) && digits(p.phone)===digits(e.phone));
-  const armedCovered=[...staying,...arriving].filter(isArmed).length;
+  const hrCovered=[...staying,...arriving].filter(isHR).length;
   const canExtend=leaving.filter(e=>e.stayUntil && e.stayUntil!=="none" && e.stayUntil>w.to);
-  return {req,needed,armedNeeded,staying,leaving,arriving,arrLeaving,covered,open,over,armedCovered,canExtend};
+  return {req,needed,hrNeeded,staying,leaving,arriving,arrLeaving,covered,open,over,hrCovered,canExtend};
 }
 function planHTML(w, compact){
   const p=weekPlan(w);
   const gapCls = p.needed==null? "" : p.open>0? "gap":"ok";
   return `${p.needed==null?`<div class="ask"><div style="flex:1 1 220px"><b>How many escorts does the NJ site need ${fD(w.from)} – ${fD(w.to)}?</b><div class="note">Enter SOC's number for this week. The board works out the gap.</div></div>
       <label class="f">Escorts needed<input type="number" min="0" inputmode="numeric" id="wk_need_${w.from}" placeholder="e.g. 8"></label>
-      <label class="f">Armed of those<input type="number" min="0" inputmode="numeric" id="wk_armed_${w.from}" placeholder="optional"></label>
+      <label class="f">HR218 of those<input type="number" min="0" inputmode="numeric" id="wk_armed_${w.from}" placeholder="optional"></label>
       <button class="btn primary" data-wk-save="${w.from}">Set</button></div>`:""}
     <div class="plan">
-      <div class="stat need"><b>${p.needed??"—"}</b><span>Needed${p.armedNeeded!=null?` · ${p.armedNeeded} armed`:""}</span></div>
+      <div class="stat need"><b>${p.needed??"—"}</b><span>Needed${p.hrNeeded!=null?` · ${p.hrNeeded} HR218`:""}</span></div>
       <div class="stat"><b>${p.staying.length}</b><span>Staying all week</span></div>
       <div class="stat"><b>${p.leaving.length}</b><span>Leaving this week</span></div>
       <div class="stat"><b>${p.arriving.length}</b><span>Arriving / booked</span></div>
       <div class="stat ${gapCls}"><b>${p.needed==null?"—":p.open>0?p.open:(p.over?"+"+p.over:"0")}</b><span>${p.needed==null?"Still needed":p.open>0?"Still needed":p.over?"Over the need":"Fully staffed"}</span></div>
     </div>
-    ${p.needed!=null&&!compact?`<div class="row note"><span>${p.covered} working this week (${p.staying.length} staying + ${p.arriving.length} arriving) against ${p.needed} needed.</span>${p.armedNeeded!=null?`<span>· Armed: ${p.armedCovered} of ${p.armedNeeded}${p.armedCovered<p.armedNeeded?` — <b>${p.armedNeeded-p.armedCovered} more armed</b>`:""}</span>`:""}${p.leaving.length?`<span>· ${p.leaving.length} leaving mid-week${p.canExtend.length?`, <b>${p.canExtend.length} could stay longer</b> (${esc(p.canExtend.map(e=>e.name).join(", "))})`:""}.</span>`:""}<button class="btn sm" data-wk-edit="${w.from}">Change need</button></div>`:""}`;
+    ${p.needed!=null&&!compact?`<div class="row note"><span>${p.covered} working this week (${p.staying.length} staying + ${p.arriving.length} arriving) against ${p.needed} needed.</span><span>· HR218 working: <b>${p.hrCovered}</b>${p.hrNeeded!=null?` of ${p.hrNeeded}${p.hrCovered<p.hrNeeded?` — <b>${p.hrNeeded-p.hrCovered} more HR218 needed</b>`:""}`:""}</span>${p.leaving.length?`<span>· ${p.leaving.length} leaving mid-week${p.canExtend.length?`, <b>${p.canExtend.length} could stay longer</b> (${esc(p.canExtend.map(e=>e.name).join(", "))})`:""}.</span>`:""}<button class="btn sm" data-wk-edit="${w.from}">Change need</button></div>`:""}`;
 }
 function editWeekNeed(from){
   const r=S.weeks[from]||{};
   modal(`Staffing need · week of ${fD(from)}`, `
     <div class="fg"><label class="f">Escorts needed<input type="number" min="0" id="m_need" value="${esc(r.needed??"")}"></label>
-    <label class="f">Armed of those<input type="number" min="0" id="m_armed" value="${esc(r.armedNeeded??"")}"></label></div>
+    <label class="f">HR218 of those<input type="number" min="0" id="m_armed" value="${esc(r.hrNeeded??"")}"></label></div>
     <label class="f">Notes from SOC<textarea id="m_wnotes" placeholder="Posts, shifts, special requirements">${esc(r.notes||"")}</textarea></label>`,
-  async()=>{ await save("weeks", from, {needed:v("m_need")===""?"":+v("m_need"), armedNeeded:v("m_armed")===""?"":+v("m_armed"), notes:v("m_wnotes"), updatedAt:new Date().toISOString()}); });
+  async()=>{ await save("weeks", from, {needed:v("m_need")===""?"":+v("m_need"), hrNeeded:v("m_armed")===""?"":+v("m_armed"), notes:v("m_wnotes"), updatedAt:new Date().toISOString()}); });
 }
 function inviteState(e){ if(e.claimedBy) return {k:"joined",t:"Joined"}; if(e.invitedAt) return {k:"inv",t:"Invited"}; return {k:"flag",t:"Not invited"}; }
 const invPill = e => { const i=inviteState(e); return `<span class="pill p-${i.k}">${i.t}</span>` };
@@ -377,6 +378,7 @@ function rOverview(app){
   <div class="stats">
     <div class="stat"><b>${es.length}</b><span>On roster</span></div>
     <div class="stat"><b>${on.length}</b><span>On site now</span></div>
+    <div class="stat"><b>${on.filter(isHR).length}</b><span>HR218 on site</span></div>
     <div class="stat"><b>${arr72.length}</b><span>Arriving · 72 h</span></div>
     <div class="stat"><b>${nextWk.length}</b><span>Coming next week</span></div>
     <div class="stat"><b>${dep72.length}</b><span>Departing · 72 h</span></div>
@@ -517,7 +519,6 @@ function rPool(app){
   const q=P.q.trim().toLowerCase(), qd=q.replace(/\D/g,"");
   const rows=all.map(p=>({...p, on:rosterMatch(p)})).filter(p=>{
     if(P.grp!=="all" && !(p.groups||[]).includes(P.grp)) return false;
-    if(P.grp==="armedOnly" && !p.armed) return false;
     if(P.status==="avail" && p.on && status(p.on).k!=="out" && status(p.on).k!=="can") return false;
     if(P.status==="roster" && !(p.on && !["out","can"].includes(status(p.on).k))) return false;
     if(q && !((p.name||"").toLowerCase().includes(q) || (qd.length>=3 && digits(p.phone).includes(qd)) || (p.notes||"").toLowerCase().includes(q))) return false;
@@ -537,7 +538,7 @@ function rPool(app){
   ${rows.map(p=>`<tr><td><input type="checkbox" data-psel="${p.id}" ${P.sel.has(p.id)?"checked":""} aria-label="Select ${esc(p.name||p.phone)}"></td>
     <td><b>${esc(p.name||"")}</b>${p.name?"":'<span class="muted">No name saved</span>'}</td>
     <td class="mono">${esc(p.phone||"")}${p.phone?"":'<span class="muted">Not shown</span>'}</td>
-    <td>${(p.groups||[]).map(g=>`<span class="pill ${g==="Armed"?"p-armed":"p-grp"}">${esc(g)}</span>`).join(" ")}</td>
+    <td>${(p.groups||[]).map(g=>`<span class="pill p-grp">${esc(g)}</span>`).join(" ")}</td>
     <td>${p.on?`<a href="#" data-edit-escort="${p.on.id}" style="color:inherit">${pill(p.on)}</a>`:'<span class="muted">—</span>'}</td>
     <td class="note">${esc(p.notes||"")}</td>
     <td style="white-space:nowrap"><button class="btn sm" data-pool-edit="${p.id}">Edit</button>${p.on&&!["out","can"].includes(status(p.on).k)?"":` <button class="btn sm" data-pool-add="${p.id}">Add</button>`}</td></tr>`).join("")}
@@ -557,7 +558,7 @@ async function addFromPool(id, quiet){
   const w=weekRange(1);
   try{
     if(on){ await db.collection("escorts").doc(on.id).set({...R.escorts[on.id], state:"", arriveAt:`${w.from}T12:00`, arriveTbd:true, departAt:"", departSetAt:new Date().toISOString(), roomId:"", teamId:"", invitedAt:"", poolId:id}); }
-    else await db.collection("escorts").doc(uid("e")).set({name:p.name||fmtPhone(p.phone), phone:fmtPhone(p.phone), arriveAt:`${w.from}T12:00`, arriveTbd:true, poolId:id, addedVia:"Staffing pool", addedAt:new Date().toISOString(), notes:(p.armed?"Armed group. ":"")+(p.notes||"")});
+    else await db.collection("escorts").doc(uid("e")).set({name:p.name||fmtPhone(p.phone), phone:fmtPhone(p.phone), arriveAt:`${w.from}T12:00`, arriveTbd:true, poolId:id, addedVia:"Staffing pool", addedAt:new Date().toISOString(), hr218:(p.groups||[]).includes("HR218"), notes:p.notes||""});
     if(!quiet) toast(`${p.name||p.phone} added for next week (arrival TBD)`); return true;
   }catch(e){ toast("Couldn't add: "+(e.message||e.code)); return false; }
 }
@@ -566,11 +567,10 @@ function editPool(id){
   modal(id?"Edit pool contact":"Add to staffing pool", `
     <div class="fg"><label class="f">Name<input id="m_pname" value="${esc(p.name||"")}"></label>
     <label class="f">Phone<input id="m_pphone" inputmode="tel" placeholder="555-555-5555" value="${esc(fmtPhone(p.phone))}"></label></div>
-    <div class="row"><label class="check"><input type="checkbox" id="m_parmed" ${p.armed?"checked":""}> Armed qualified</label></div>
     <label class="f">Groups (comma separated)<input id="m_pgroups" value="${esc((p.groups||[]).join(", "))}"></label>
     <label class="f">Notes<textarea id="m_pnotes" placeholder="Availability, licenses, preferences">${esc(p.notes||"")}</textarea></label>`,
   async()=>{ if(!v("m_pname")&&!v("m_pphone")){ toast("Enter a name or phone"); return false; }
-    await save("pool", p.id, {...(S.pool[p.id]||{}), name:v("m_pname"), phone:fmtPhone(v("m_pphone")), armed:$("#m_parmed").checked, groups:v("m_pgroups").split(",").map(x=>x.trim()).filter(Boolean), notes:v("m_pnotes")}); },
+    await save("pool", p.id, {...(S.pool[p.id]||{}), name:v("m_pname"), phone:fmtPhone(v("m_pphone")), groups:v("m_pgroups").split(",").map(x=>x.trim()).filter(Boolean), notes:v("m_pnotes")}); },
   id? ()=>save("pool", id, {deleted:true}) : null);
 }
 
@@ -584,8 +584,9 @@ function quickSetupHTML(es){
   const teams=list("teams").sort((a,b)=>String(a.name||"").localeCompare(String(b.name||""),undefined,{numeric:true}));
   const live=es.filter(e=>!["can","out"].includes(status(e).k));
   if(!live.length) return `<p class="muted" style="margin:0">Add escorts first.</p>`;
-  return `<div class="tbl-wrap"><table><thead><tr><th>Escort</th><th>Room</th><th>Team</th><th>Rental in name</th></tr></thead><tbody>
+  return `<div class="tbl-wrap"><table><thead><tr><th>Escort</th><th>HR218</th><th>Room</th><th>Team</th><th>Rental in name</th></tr></thead><tbody>
   ${live.map(e=>`<tr><td><b>${esc(e.name)}</b></td>
+    <td><input type="checkbox" data-qs-hr="${e.id}" aria-label="${esc(e.name)} is HR218" ${isHR(e)?"checked":""}></td>
     <td><select data-qs-room="${e.id}" aria-label="Room for ${esc(e.name)}">${opt("","No room",!e.roomId)}${rooms.map(r=>{const occ=roomOcc(r.id).filter(x=>x.id!==e.id);return opt(r.id,`${roomLabel(r)} (${occ.length}/2)`,e.roomId===r.id,occ.length>=2)}).join("")}</select></td>
     <td><select data-qs-team="${e.id}" aria-label="Team for ${esc(e.name)}">${opt("","No team",!e.teamId)}${teams.map(t=>{const m=teamMembers(t.id).filter(x=>x.id!==e.id);return opt(t.id,`${teamLabel(t)} (${m.length}/2)`,e.teamId===t.id,m.length>=2)}).join("")}</select></td>
     <td style="white-space:nowrap"><label class="check" style="display:inline-flex"><input type="radio" name="qs_r_${e.id}" data-qs-rent="${e.id}" value="yes" ${hasRental(e)?"checked":""}> Yes</label> <label class="check" style="display:inline-flex;margin-left:10px"><input type="radio" name="qs_r_${e.id}" data-qs-rent="${e.id}" value="no" ${e.carInName&&e.carInName.has===false&&!carsFor(e).length?"checked":""}> No</label></td></tr>`).join("")}
@@ -600,7 +601,7 @@ function rEscorts(app){
   <div class="panel"><div class="hd"><h2>Escort roster</h2><span class="muted">${es.length} total</span><div class="spacer"></div><button class="btn primary" data-act="newEscort">Add escort</button></div>
   ${es.length? `<div class="tbl-wrap"><table><thead><tr><th>Name</th><th>Status</th><th>Arrives</th><th>Departs</th><th>Room</th><th>Roommate</th><th>Partner</th><th>Rental car in name</th><th>Invite</th></tr></thead><tbody>
   ${es.map(e=>{const car=carsFor(e)[0];return `<tr class="click" data-edit-escort="${e.id}">
-    <td><b>${esc(e.name)}</b>${e.phone?`<div class="note mono">${esc(e.phone)}</div>`:""}</td><td>${pill(e)}</td>
+    <td><b>${esc(e.name)}</b>${hrPill(e)}${e.phone?`<div class="note mono">${esc(e.phone)}</div>`:""}</td><td>${pill(e)}</td>
     <td class="t">${arrT(e)}</td>
     <td class="t">${fDT(e.departAt)}${e.departBy==="escort"?`<div><span class="pill p-self">Self-reported</span></div>`:""}${stayT(e)?`<div class="note">${stayT(e)}</div>`:""}</td>
     <td>${e.roomId? esc(roomLabel(S.rooms[e.roomId])) : '<span class="pill p-flag">None</span>'}</td>
@@ -616,6 +617,7 @@ function rEscorts(app){
   app.querySelectorAll("[data-qs-room]").forEach(sel=>sel.onchange=async()=>{ dirty=false; const rid=sel.value, eid=sel.dataset.qsRoom; if(rid && roomOcc(rid).filter(x=>x.id!==eid).length>=2) return toast("That room is full");
     const bi=rid? roomBeds(rid).indexOf(null) : -1; await patch("escorts", eid, {roomId:rid, bed:rid?bi+1:null}); toast(rid?`${name(eid)} → ${roomLabel(S.rooms[rid])}`:`${name(eid)}: no room`); });
   app.querySelectorAll("[data-qs-team]").forEach(sel=>sel.onchange=async()=>{ dirty=false; const tid=sel.value, eid=sel.dataset.qsTeam; await patch("escorts", eid, {teamId:tid}); toast(tid?`${name(eid)} → ${teamLabel(S.teams[tid])}`:`${name(eid)}: no team`); });
+  app.querySelectorAll("[data-qs-hr]").forEach(c=>c.onchange=async()=>{ dirty=false; await patch("escorts", c.dataset.qsHr, {hr218:c.checked}); toast(`${name(c.dataset.qsHr)}: ${c.checked?"HR218":"not HR218"}`); });
   app.querySelectorAll("[data-qs-rent]").forEach(r=>r.onchange=()=>{ if(r.checked){ dirty=false; setRental(r.dataset.qsRent, r.value==="yes"); } });
 }
 function linkFor(id){ const base=(S.site.linkBase||(location.origin+location.pathname)).replace(/#.*$/,""); const t=R.escorts[id]?.token; return t? `${base}#${t}` : "Link being created…"; }
@@ -1005,6 +1007,7 @@ function editEscort(id){
     <div class="fieldset-title">Departure</div>
     ${e.departBy==="escort"?`<p class="note" style="margin:0"><span class="pill p-self">Self-reported</span> ${esc(e.name)} entered this on ${fISO(e.departReportedAt)}${e.escortNote?` — “${esc(e.escortNote)}”`:""}. Changing it here overrides theirs until they submit again.</p>`:""}
     <div class="fg"><label class="f">Planned departure<input type="datetime-local" id="m_departAt" value="${esc(e.departAt||"")}"></label></div>
+    <div class="row"><label class="check"><input type="checkbox" id="m_hr" ${isHR(e)?"checked":""}> HR218</label></div>
     <div class="fieldset-title">Assignments</div>
     <div class="fg"><label class="f">Hotel room<select id="m_roomId">${roomOpts}</select></label>
     <label class="f">Partner team<select id="m_teamId">${teamOpts}</select></label>
@@ -1019,9 +1022,9 @@ function editEscort(id){
     if(v("m_arriveAt")&&v("m_departAt")&&v("m_departAt")<v("m_arriveAt")){ toast("Departure is before arrival"); return false; }
     const rent=document.querySelector('input[name="m_rent"]:checked')?.value||"";
     const now=new Date().toISOString();
-    await save("escorts", e.id, {...raw, departSetAt: v("m_departAt")!==(e.departAt||"") ? now : (raw.departSetAt||""), arriveTbd: !!raw.arriveTbd && v("m_arriveAt")===(e.arriveAt||""), name:v("m_name"),phone:v("m_phone"),state:v("m_state"),arriveAt:v("m_arriveAt"),departAt:v("m_departAt"),roomId:v("m_roomId"),teamId:v("m_teamId"),notes:v("m_notes")});
+    await save("escorts", e.id, {...raw, departSetAt: v("m_departAt")!==(e.departAt||"") ? now : (raw.departSetAt||""), arriveTbd: !!raw.arriveTbd && v("m_arriveAt")===(e.arriveAt||""), name:v("m_name"),phone:v("m_phone"),state:v("m_state"),hr218:$("#m_hr").checked,arriveAt:v("m_arriveAt"),departAt:v("m_departAt"),roomId:v("m_roomId"),teamId:v("m_teamId"),notes:v("m_notes")});
     if(isAdmin){ const d=digits(v("m_phone")), n=v("m_name"); const hit=d.length===10 ? poolList().find(p=>digits(p.phone)===d) : poolList().find(p=>(p.name||"").toLowerCase()===n.toLowerCase());
-      try{ if(!hit) await db.collection("pool").doc(d.length===10?"p"+d:uid("p")).set({name:n, phone:fmtPhone(v("m_phone")), groups:["Added on board"], armed:false, notes:""});
+      try{ if(!hit) await db.collection("pool").doc(d.length===10?"p"+d:uid("p")).set({name:n, phone:fmtPhone(v("m_phone")), groups:["Added on board"], notes:""});
            else if(!hit.name && n) await db.collection("pool").doc(hit.id).set({...S.pool[hit.id], name:n}); }catch(err){} }
     if(rent) await setRental(e.id, rent==="yes", true);
   },
@@ -1236,7 +1239,7 @@ async function exportPDF(){
   if($("#rp_wk").checked){
     const nw=weekRange(1);
     section("Staffing plan");
-    table(["Week","Needed","Armed needed","Staying all week","Leaving this week","Arriving / booked","Still needed"], [0,1].map(o=>{const w=weekRange(o), p=weekPlan(w); return [`${fD(w.from)} – ${fD(w.to)}`, p.needed??"Not set", p.armedNeeded??"—", p.staying.length, p.leaving.length, p.arriving.length, p.needed==null?"—":p.open>0?p.open:(p.over?`0 (+${p.over} over)`:"0")];}), {styles:{...tableBase.styles,halign:"center"}});
+    table(["Week","Needed","HR218 needed","HR218 working","Staying all week","Leaving this week","Arriving / booked","Still needed"], [0,1].map(o=>{const w=weekRange(o), p=weekPlan(w); return [`${fD(w.from)} – ${fD(w.to)}`, p.needed??"Not set", p.hrNeeded??"—", p.hrCovered, p.staying.length, p.leaving.length, p.arriving.length, p.needed==null?"—":p.open>0?p.open:(p.over?`0 (+${p.over} over)`:"0")];}), {styles:{...tableBase.styles,halign:"center"}});
     section("On site now");
     table(["Escort","Phone","Arrived","Expected departure","Room","Partner"], all.filter(e=>status(e).k==="on").map(e=>[e.name,e.phone||"—",arrT(e),fDT(e.departAt)+(e.departBy==="escort"?" (self-reported)":""),e.roomId?roomLabel(S.rooms[e.roomId]):"Unassigned",partnerOf(e).map(x=>x.name).join(", ")||"Unassigned"]));
     section(`Coming next week · ${fD(nw.from)} – ${fD(nw.to)}`);
@@ -1251,7 +1254,7 @@ async function exportPDF(){
   }
   if($("#rp_ros").checked){
     section("Personnel roster");
-    table(["Escort","Phone","Status","Arrives","Departs","If needed, can stay","Room","Roommate","Partner","Rental in name"], ros.map(e=>{const c=carsFor(e)[0];return [e.name,e.phone||"—",status(e).t,arrT(e),fDT(e.departAt)+(e.departBy==="escort"?" (self-reported)":""),!e.stayUntil?"—":e.stayUntil==="none"?"No":fD(e.stayUntil),e.roomId?roomLabel(S.rooms[e.roomId]):"—",roommateOf(e).map(x=>x.name).join(", ")||"—",partnerOf(e).map(x=>x.name).join(", ")||"—",c?(c.vehicle||"Yes"):(carNameT(e)||"—")]}));
+    table(["Escort","HR218","Phone","Status","Arrives","Departs","If needed, can stay","Room","Roommate","Partner","Rental in name"], ros.map(e=>{const c=carsFor(e)[0];return [e.name,isHR(e)?"Yes":"—",e.phone||"—",status(e).t,arrT(e),fDT(e.departAt)+(e.departBy==="escort"?" (self-reported)":""),!e.stayUntil?"—":e.stayUntil==="none"?"No":fD(e.stayUntil),e.roomId?roomLabel(S.rooms[e.roomId]):"—",roommateOf(e).map(x=>x.name).join(", ")||"—",partnerOf(e).map(x=>x.name).join(", ")||"—",c?(c.vehicle||"Yes"):(carNameT(e)||"—")]}));
   }
   if($("#rp_lod").checked){
     section("Lodging");
@@ -1294,7 +1297,7 @@ document.addEventListener("click", ev=>{
     if(t.dataset.serviced) return markServiced(t.dataset.serviced);
     if(t.dataset.fdCopy) return copyText(frontDesk().text, "Front desk list copied", []);
     if(t.dataset.carFrom){ const e=S.escorts[t.dataset.carFrom], c=carIn(e); return save("cars", uid("c"), {vehicle:c.vehicle||"", assignedTo:t.dataset.carFrom, color:"", agency:"", notes:"Reported by escort"}); }
-    if(t.dataset.wkSave){ const f=t.dataset.wkSave, n=$("#wk_need_"+f).value, a=$("#wk_armed_"+f).value; if(n===""){ toast("Enter how many escorts are needed"); return; } dirty=false; return save("weeks", f, {needed:+n, armedNeeded:a===""?"":+a, notes:(S.weeks[f]||{}).notes||"", updatedAt:new Date().toISOString()}); }
+    if(t.dataset.wkSave){ const f=t.dataset.wkSave, n=$("#wk_need_"+f).value, a=$("#wk_armed_"+f).value; if(n===""){ toast("Enter how many escorts are needed"); return; } dirty=false; return save("weeks", f, {needed:+n, hrNeeded:a===""?"":+a, notes:(S.weeks[f]||{}).notes||"", updatedAt:new Date().toISOString()}); }
     if(t.dataset.wkEdit) return editWeekNeed(t.dataset.wkEdit);
     if(t.dataset.wkOpen!==undefined){ weekOff=+t.dataset.wkOpen; tab="week"; return render(); }
     if(t.dataset.wk){ weekOff = t.dataset.wk==="reset" ? 1 : weekOff+(+t.dataset.wk); return render(); }
