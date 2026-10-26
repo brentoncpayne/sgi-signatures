@@ -1,10 +1,1341 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>SGI · NJ Site</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex">
-<script>location.replace("https://claude.ai/artifact/7WkT6QB1pX41tU9cQNtL2n" + location.hash);</script>
-<style>body{font:16px system-ui,sans-serif;background:#F1F2EE;color:#161A14;display:grid;place-items:center;min-height:100vh;margin:0}a{color:#4E6B2A;font-weight:600}</style>
-</head><body><p>Opening your NJ site assignment… <a id="go" href="https://claude.ai/artifact/7WkT6QB1pX41tU9cQNtL2n">Tap here if it doesn't open.</a></p>
-<script>document.getElementById("go").href += location.hash;</script>
+<title>NJ Site Board</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;600;700&family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="config.js"></script>
+<style>
+html{color-scheme:light}:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,-apple-system,"Segoe UI",sans-serif}img{max-width:100%}[hidden]{display:none!important}
+/* Layout: dispatch board. Sticky command bar, tabbed admin console, single-column escort card. */
+:root{
+  --bg:#F1F2EE; --panel:#FFFFFF; --sunk:#E6E9E1; --line:#CFD4C8;
+  --ink:#161A14; --muted:#5D6657; --accent:#4E6B2A; --accent-ink:#FFFFFF;
+  --arrive:#1C7A55; --arrive-bg:#DDF1E7; --depart:#A4501A; --depart-bg:#F8E6D8;
+  --warn:#9A6B00; --warn-bg:#FBF0CF; --gone:#6B7480; --gone-bg:#E6E9ED; --danger:#B3261E;
+  --display:"Saira Condensed","Arial Narrow",Arial,sans-serif;
+  --body:"Public Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  --brand:#4E6B2A; --on-brand:#FFFFFF;
+  --r:6px;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#111410; --panel:#1A1E18; --sunk:#22281F; --line:#333B2E;
+  --ink:#E6EAE1; --muted:#9BA693; --accent:#A3C46E; --accent-ink:#141A0E;
+  --arrive:#5FCB9A; --arrive-bg:#163327; --depart:#F0A06A; --depart-bg:#3A2416;
+  --warn:#E8C060; --warn-bg:#352B10; --gone:#8C96A2; --gone-bg:#232C36; --danger:#F08A82; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#111410; --panel:#1A1E18; --sunk:#22281F; --line:#333B2E;
+  --ink:#E6EAE1; --muted:#9BA693; --accent:#A3C46E; --accent-ink:#141A0E;
+  --arrive:#5FCB9A; --arrive-bg:#163327; --depart:#F0A06A; --depart-bg:#3A2416;
+  --warn:#E8C060; --warn-bg:#352B10; --gone:#8C96A2; --gone-bg:#232C36; --danger:#F08A82; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:14px;line-height:1.45}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--brand)}
+.wrap{max-width:1180px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+header.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--brand);color:var(--on-brand);border-bottom:3px solid color-mix(in srgb,var(--brand) 70%,#fff)}
+header.bar .wrap{display:flex;align-items:center;gap:14px;padding-block:10px;flex-wrap:wrap}
+.mark{display:flex;align-items:center;gap:10px;min-width:0}
+.logo-chip{display:flex;align-items:center;justify-content:center;background:#fff;border-radius:4px;padding:4px 6px;min-height:40px}
+.logo-chip img{height:32px;width:auto;display:block}
+.wm{font-family:var(--display);font-weight:700;font-size:26px;letter-spacing:.06em;color:var(--brand);line-height:1;padding:0 4px}
+.badge-co{font-size:10.5px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;opacity:.8}
+.badge-site{font-family:var(--display);font-weight:700;font-size:22px;letter-spacing:.02em;text-transform:uppercase;line-height:1}
+.badge-sub{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+header.bar .badge-sub{color:var(--on-brand);opacity:.75}
+.spacer{flex:1}
+.mode{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--on-brand);border:1px solid rgba(255,255,255,.4);border-radius:99px;padding:3px 10px}
+header.bar .btn{background:transparent;color:var(--on-brand);border-color:rgba(255,255,255,.45)}
+header.bar .btn:hover{background:rgba(255,255,255,.12)}
+nav.tabs{display:flex;gap:2px;overflow-x:auto;border-bottom:1px solid var(--line);background:var(--panel)}
+nav.tabs .wrap{display:flex;gap:4px;overflow-x:auto}
+.tab{appearance:none;background:none;border:0;border-bottom:3px solid transparent;padding:10px 12px;font:600 13px var(--body);color:var(--muted);cursor:pointer;white-space:nowrap}
+.tab[aria-selected="true"]{color:var(--ink);border-color:var(--accent)}
+main .wrap{padding-block:20px 48px;display:grid;gap:20px}
+h2{font-family:var(--display);font-weight:600;font-size:24px;letter-spacing:.02em;text-transform:uppercase;margin:0;text-wrap:balance}
+h3{font-family:var(--display);font-weight:600;font-size:17px;letter-spacing:.04em;text-transform:uppercase;margin:0;color:var(--muted)}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r)}
+.panel>.hd{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.panel>.bd{padding:14px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px}
+.stat b{display:block;font-family:var(--display);font-size:34px;line-height:1;font-weight:700;font-variant-numeric:tabular-nums}
+.stat span{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.stat.alert b{color:var(--warn)}
+.btn{appearance:none;border:1px solid var(--line);background:var(--panel);color:var(--ink);font:600 13px var(--body);padding:8px 12px;border-radius:var(--r);cursor:pointer;white-space:nowrap}
+.btn:hover{background:var(--sunk)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.danger{color:var(--danger)}
+.btn.sm{padding:5px 9px;font-size:12px}
+.btn:focus-visible,.tab:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600;padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:0}
+tbody tr.click{cursor:pointer}
+tbody tr.click:hover td{background:var(--sunk)}
+.mono,.t{font-family:var(--mono);font-size:12.5px;font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)}
+.pill{display:inline-block;font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;padding:2px 8px;border-radius:99px;white-space:nowrap}
+.p-exp{background:var(--warn-bg);color:var(--warn)} .p-on{background:var(--arrive-bg);color:var(--arrive)}
+.p-out{background:var(--gone-bg);color:var(--gone)} .p-can{background:var(--gone-bg);color:var(--gone);text-decoration:line-through}
+.p-flag{background:var(--warn-bg);color:var(--warn)} .p-armed{background:var(--depart-bg);color:var(--depart)} .p-depart{background:var(--depart-bg);color:var(--depart)} .p-grp{background:var(--sunk);color:var(--muted)} .p-joined{background:var(--arrive-bg);color:var(--arrive)} .p-inv{background:var(--sunk);color:var(--accent)} .p-self{background:var(--sunk);color:var(--accent)}
+.wkbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.wkbar .lbl{font-family:var(--display);font-size:22px;font-weight:600;text-transform:uppercase;letter-spacing:.02em}
+.plan{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px}
+.plan .stat b{font-size:30px}
+.plan .stat.need b{color:var(--accent)}
+.plan .stat.gap b{color:var(--danger)} .plan .stat.ok b{color:var(--arrive)}
+.ask{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;background:var(--sunk);border-radius:var(--r);padding:12px 14px}
+.ask label{flex:0 1 140px}
+.steps{margin:0;padding-left:18px;display:grid;gap:4px;font-size:13px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:20px}
+.grid2>*{min-width:0}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;display:grid;gap:8px;cursor:pointer;text-align:left;font:inherit;color:inherit}
+.card:hover{border-color:var(--accent)}
+.card .top{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+.card .nm{font-family:var(--display);font-weight:600;font-size:19px;text-transform:uppercase;letter-spacing:.02em}
+.slots{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.slot{background:var(--sunk);border-radius:4px;padding:6px 8px;font-size:12.5px;min-height:32px}
+.rcard{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;display:grid;gap:10px}
+.rcard.full{border-color:color-mix(in srgb,var(--arrive) 45%,var(--line))}
+.rcard .top{display:flex;justify-content:space-between;gap:8px;align-items:center}
+.rcard .nm{font-family:var(--display);font-weight:600;font-size:21px;text-transform:uppercase;letter-spacing:.02em}
+.bed{display:grid;gap:4px}
+.bed label{font-size:10.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.bed select{font-weight:600}
+.bed.open select{color:var(--muted);font-weight:400;border-style:dashed}
+input.filled{background:var(--arrive-bg);transition:background .3s}
+.slot.empty{color:var(--muted);font-style:italic;background:transparent;border:1px dashed var(--line)}
+.timeline{display:grid;gap:16px}
+.day h4{margin:0 0 6px;font:600 12px var(--body);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.mv{display:grid;grid-template-columns:62px 22px 1fr;gap:8px;align-items:start;padding:6px 0;border-top:1px solid var(--line)}
+.mv .dir{font-weight:700;font-family:var(--mono);text-align:center;border-radius:3px;font-size:12px;line-height:20px}
+.mv .in{background:var(--arrive-bg);color:var(--arrive)} .mv .out{background:var(--depart-bg);color:var(--depart)}
+.empty-state{padding:28px 18px;text-align:center;color:var(--muted);display:grid;gap:10px;justify-items:center}
+.empty-state strong{color:var(--ink);font-size:15px}
+/* forms */
+.overlay{position:fixed;inset:0;background:rgba(10,16,24,.45);z-index:20;display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:calc(env(safe-area-inset-top,0px) + 24px) max(16px,env(safe-area-inset-right,0px)) 24px max(16px,env(safe-area-inset-left,0px))}
+.sheet{background:var(--panel);border:1px solid var(--line);border-radius:8px;width:100%;max-width:640px;box-shadow:0 18px 50px rgba(0,0,0,.25)}
+.sheet .hd{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line)}
+.sheet .bd{padding:16px;display:grid;gap:14px}
+.sheet .ft{display:flex;gap:8px;padding:12px 16px;border-top:1px solid var(--line);flex-wrap:wrap}
+.fg{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+label.f{display:grid;gap:4px;font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+input,select,textarea{font:400 14px var(--body);color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:5px;padding:8px 9px;width:100%;min-width:0;text-transform:none;letter-spacing:0}
+textarea{min-height:64px;resize:vertical}
+.check{display:flex;gap:8px;align-items:center;font-size:13px;text-transform:none;letter-spacing:0;color:var(--ink);font-weight:500}
+.check input{width:auto}
+.fieldset-title{font-family:var(--display);font-size:15px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;border-bottom:1px solid var(--line);padding-bottom:4px}
+.note{font-size:12.5px;color:var(--muted)}
+.toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 20px);transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:9px 16px;border-radius:99px;font-weight:600;font-size:13px;z-index:30}
+/* escort view */
+.me{display:grid;gap:16px;max-width:720px;margin:0 auto;width:100%}
+.me-hero{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:18px;display:grid;gap:6px}
+.me-hero .nm{font-family:var(--display);font-size:36px;font-weight:700;text-transform:uppercase;line-height:1;letter-spacing:.01em}
+.kv{display:grid;grid-template-columns:120px 1fr;gap:8px 14px;font-size:14px}
+.kv dt{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);padding-top:2px}
+.kv dd{margin:0;min-width:0}
+.big-t{font-family:var(--mono);font-size:16px;font-weight:500}
+.picker{display:grid;gap:6px}
+.picker button{text-align:left}
+.linkbox{display:flex;gap:6px}
+.linkbox input{font-family:var(--mono);font-size:12px}
+.chatgrid{grid-template-columns:minmax(0,2fr) minmax(260px,1fr)}
+@media (max-width:860px){.chatgrid{grid-template-columns:1fr}}
+.chat{display:grid;grid-template-rows:auto 1fr auto;min-height:0}
+.chat-log{display:flex;flex-direction:column;gap:8px;padding:14px;max-height:56vh;min-height:220px;overflow-y:auto;background:var(--bg)}
+.msg{max-width:min(78%,520px);display:grid;gap:2px;align-self:flex-start}
+.msg.mine{align-self:flex-end;text-align:right}
+.msg .who{font-size:11px;font-weight:600;letter-spacing:.04em;color:var(--muted)}
+.msg .who .lead{color:var(--accent)}
+.msg .txt{background:var(--panel);border:1px solid var(--line);border-radius:10px 10px 10px 3px;padding:7px 11px;white-space:pre-wrap;word-wrap:break-word;text-align:left}
+.msg.mine .txt{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);border-radius:10px 10px 3px 10px}
+.msg.lead:not(.mine) .txt{border-color:var(--accent)}
+.chat-in{display:flex;gap:8px;padding:10px 12px;border-top:1px solid var(--line);align-items:flex-end}
+.chat-in textarea{min-height:42px;max-height:140px}
+.members{display:flex;flex-wrap:wrap;gap:6px}
+.unread{display:inline-block;min-width:18px;padding:0 5px;border-radius:99px;background:var(--danger);color:#fff;font-size:11px;line-height:18px;text-align:center;margin-left:4px}
+.dir-hit mark{background:var(--warn-bg);color:inherit;padding:0 1px;border-radius:2px}
+@media (max-width:520px){.kv{grid-template-columns:1fr;gap:2px}.kv dd{margin-bottom:10px}.badge-site{font-size:19px}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head><body>
+
+<header class="bar"><div class="wrap">
+  <div class="mark"><span class="logo-chip"><img id="hdrLogo" alt="SGI" hidden><span class="wm" id="hdrWm">SGI</span></span>
+    <div><div class="badge-co" id="hdrCo">Solutions Group International</div><div class="badge-site" id="hdrSite">New Jersey Site</div><div class="badge-sub" id="hdrSub">Escort roster · lodging · vehicles</div></div>
+  </div>
+  <div class="spacer"></div>
+  <span class="mode" id="modeTag">Loading</span>
+  <button class="btn sm" id="switchView" hidden>Escort preview</button>
+</div></header>
+<nav class="tabs" id="tabs" hidden><div class="wrap" role="tablist">
+  <button class="tab" data-tab="overview" aria-selected="true">Overview</button>
+  <button class="tab" data-tab="week">Week ahead</button>
+  <button class="tab" data-tab="pool">Staffing pool</button>
+  <button class="tab" data-tab="escorts">Escorts</button>
+  <button class="tab" data-tab="rooms">Hotel rooms</button>
+  <button class="tab" data-tab="chat" id="chatTab">Team chat</button>
+  <button class="tab" data-tab="cars">Rental cars</button>
+  <button class="tab" data-tab="teams">Partners</button>
+  <button class="tab" data-tab="report">SOC report</button>
+  <button class="tab" data-tab="settings">Site settings</button>
+</div></nav>
+<main><div class="wrap" id="app">
+  <div class="panel"><div class="empty-state"><strong>Loading the site roster…</strong><span>Arrivals, departures, rooms, rental cars and partner teams appear here.</span></div></div>
+</div></main>
+<div id="modalRoot"></div>
+
+<script>
+(() => {
+const $ = (s, r=document) => r.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const uid = p => p + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+const S = { escorts:{}, rooms:{}, cars:{}, teams:{}, site:{}, checkins:{}, chat:{}, pool:{}, weeks:{} };
+const P = { q:"", grp:"all", status:"avail", sel:new Set(), qs:false };
+const R = { escorts:{} };
+let ESCORT_ID=null, HALT=""; const newToken=()=>{ const a=new Uint8Array(18); crypto.getRandomValues(a); return Array.from(a,b=>b.toString(36).padStart(2,"0")).join("").slice(0,24); };
+let db=null, user=null, isAdmin=false, viewMode="escort", tab="overview", downloads=null, myUid=null, weekOff=1, dirty=false, profiles={};
+const ls = { get(k){try{return localStorage.getItem(k)}catch(e){return null}}, set(k,v){try{localStorage.setItem(k,v)}catch(e){}} };
+
+/* ---------- dates ---------- */
+const D = s => s ? new Date(s) : null;
+const DAYS=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"], MON=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const p2 = n => String(n).padStart(2,"0");
+const fT = s => { const d=D(s); return d&&!isNaN(d)? `${p2(d.getHours())}${p2(d.getMinutes())}` : "" };
+const fDay = s => { const d=D(s); return d&&!isNaN(d)? `${DAYS[d.getDay()]} ${MON[d.getMonth()]} ${d.getDate()}` : "" };
+const fDT = s => s ? `${fDay(s)} · ${fT(s)}` : "—";
+const fISO = iso => { const d=iso?new Date(iso):null; return d&&!isNaN(d)? `${DAYS[d.getDay()]} ${MON[d.getMonth()]} ${d.getDate()} · ${p2(d.getHours())}${p2(d.getMinutes())}` : "—" };
+const fD = s => s ? fDay(s.length===10? s+"T12:00": s) : "—";
+const dayKey = s => s ? s.slice(0,10) : "";
+
+const ymd = d => `${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())}`;
+function weekStartOf(date){ const ws=+(S.site.weekStart ?? 0); const d=new Date(date.getFullYear(),date.getMonth(),date.getDate()); d.setDate(d.getDate()-((d.getDay()-ws+7)%7)); return d; }
+function weekRange(off){ const s=weekStartOf(new Date()); s.setDate(s.getDate()+7*off); const e=new Date(s); e.setDate(e.getDate()+6); return {from:ymd(s),to:ymd(e)}; }
+const inWeek = (str,w) => { const k=dayKey(str); return !!k && k>=w.from && k<=w.to; };
+const stayT = e => !e.stayUntil ? "" : e.stayUntil==="none" ? "Can't extend" : `Can stay to ${fD(e.stayUntil)}`;
+const hasRental = e => !!(e && (carsFor(e).length || carIn(e)));
+const carIn = e => e.carInName && e.carInName.has ? e.carInName : null;
+const carNameT = e => { const c=carIn(e); if(c) return "Yes"; if(e.carInName && e.carInName.has===false) return "No"; return ""; };
+const arrT = e => e.arriveAt ? (e.arriveTbd ? `${fDay(e.arriveAt)} · time TBD` : fDT(e.arriveAt)) : "—";
+/* merge escort-reported departures onto the roster */
+function merge(){
+  const byE={};
+  for(const [u,c] of Object.entries(S.checkins)){ if(!c||!c.escortId) continue; const k=c.reportedAt||c.claimedAt||""; const p=byE[c.escortId]; if(!p||k>(p.reportedAt||p.claimedAt||"")) byE[c.escortId]={uid:u,...c}; }
+  const out={};
+  for(const [id,e] of Object.entries(R.escorts)){
+    const m={...e}, c=byE[id];
+    if(c){ m.claimedBy=c.uid; m.claimedAt=c.claimedAt; m.stayUntil=c.stayUntil||""; m.svc=c.svc||null; m.carInName=c.carInName||null;
+      if(c.departAt && (c.reportedAt||"")>(e.departSetAt||"")){ m.departAt=c.departAt; m.departBy="escort"; m.departReportedAt=c.reportedAt; m.escortNote=c.note||""; } }
+    const a=e.carInNameAdmin; if(a && (!m.carInName || (a.at||"")>=(m.carInName.at||""))) m.carInName={...a, byAdmin:true};
+    out[id]=m;
+  }
+  S.escorts=out;
+}
+/* weekly staffing math */
+function weekPlan(w){
+  const es=escorts().filter(e=>status(e).k!=="can");
+  const startTs=w.from+"T00:00", endTs=w.to+"T23:59";
+  const presentAtStart=e=> e.arriveAt && e.arriveAt<startTs && (!e.departAt || e.departAt>=startTs) && e.state!=="departed";
+  const staying=es.filter(e=>presentAtStart(e) && (!e.departAt || e.departAt>endTs));
+  const leaving=es.filter(e=>presentAtStart(e) && e.departAt && e.departAt>=startTs && e.departAt<=endTs);
+  const arriving=es.filter(e=>inWeek(e.arriveAt,w));
+  const arrLeaving=arriving.filter(e=>e.departAt && e.departAt<=endTs);
+  const req=S.weeks[w.from]||{};
+  const needed= req.needed===undefined||req.needed===""? null : +req.needed;
+  const armedNeeded= req.armedNeeded===undefined||req.armedNeeded===""? null : +req.armedNeeded;
+  const covered=staying.length+arriving.length;
+  const open= needed==null? null : Math.max(0, needed-covered);
+  const over= needed==null? 0 : Math.max(0, covered-needed);
+  const isArmed=e=>/armed/i.test(e.notes||"") || Object.values(S.pool).some(p=>p.armed && digits(p.phone) && digits(p.phone)===digits(e.phone));
+  const armedCovered=[...staying,...arriving].filter(isArmed).length;
+  const canExtend=leaving.filter(e=>e.stayUntil && e.stayUntil!=="none" && e.stayUntil>w.to);
+  return {req,needed,armedNeeded,staying,leaving,arriving,arrLeaving,covered,open,over,armedCovered,canExtend};
+}
+function planHTML(w, compact){
+  const p=weekPlan(w);
+  const gapCls = p.needed==null? "" : p.open>0? "gap":"ok";
+  return `${p.needed==null?`<div class="ask"><div style="flex:1 1 220px"><b>How many escorts does the NJ site need ${fD(w.from)} – ${fD(w.to)}?</b><div class="note">Enter SOC's number for this week. The board works out the gap.</div></div>
+      <label class="f">Escorts needed<input type="number" min="0" inputmode="numeric" id="wk_need_${w.from}" placeholder="e.g. 8"></label>
+      <label class="f">Armed of those<input type="number" min="0" inputmode="numeric" id="wk_armed_${w.from}" placeholder="optional"></label>
+      <button class="btn primary" data-wk-save="${w.from}">Set</button></div>`:""}
+    <div class="plan">
+      <div class="stat need"><b>${p.needed??"—"}</b><span>Needed${p.armedNeeded!=null?` · ${p.armedNeeded} armed`:""}</span></div>
+      <div class="stat"><b>${p.staying.length}</b><span>Staying all week</span></div>
+      <div class="stat"><b>${p.leaving.length}</b><span>Leaving this week</span></div>
+      <div class="stat"><b>${p.arriving.length}</b><span>Arriving / booked</span></div>
+      <div class="stat ${gapCls}"><b>${p.needed==null?"—":p.open>0?p.open:(p.over?"+"+p.over:"0")}</b><span>${p.needed==null?"Still needed":p.open>0?"Still needed":p.over?"Over the need":"Fully staffed"}</span></div>
+    </div>
+    ${p.needed!=null&&!compact?`<div class="row note"><span>${p.covered} working this week (${p.staying.length} staying + ${p.arriving.length} arriving) against ${p.needed} needed.</span>${p.armedNeeded!=null?`<span>· Armed: ${p.armedCovered} of ${p.armedNeeded}${p.armedCovered<p.armedNeeded?` — <b>${p.armedNeeded-p.armedCovered} more armed</b>`:""}</span>`:""}${p.leaving.length?`<span>· ${p.leaving.length} leaving mid-week${p.canExtend.length?`, <b>${p.canExtend.length} could stay longer</b> (${esc(p.canExtend.map(e=>e.name).join(", "))})`:""}.</span>`:""}<button class="btn sm" data-wk-edit="${w.from}">Change need</button></div>`:""}`;
+}
+function editWeekNeed(from){
+  const r=S.weeks[from]||{};
+  modal(`Staffing need · week of ${fD(from)}`, `
+    <div class="fg"><label class="f">Escorts needed<input type="number" min="0" id="m_need" value="${esc(r.needed??"")}"></label>
+    <label class="f">Armed of those<input type="number" min="0" id="m_armed" value="${esc(r.armedNeeded??"")}"></label></div>
+    <label class="f">Notes from SOC<textarea id="m_wnotes" placeholder="Posts, shifts, special requirements">${esc(r.notes||"")}</textarea></label>`,
+  async()=>{ await save("weeks", from, {needed:v("m_need")===""?"":+v("m_need"), armedNeeded:v("m_armed")===""?"":+v("m_armed"), notes:v("m_wnotes"), updatedAt:new Date().toISOString()}); });
+}
+function inviteState(e){ if(e.claimedBy) return {k:"joined",t:"Joined"}; if(e.invitedAt) return {k:"inv",t:"Invited"}; return {k:"flag",t:"Not invited"}; }
+const invPill = e => { const i=inviteState(e); return `<span class="pill p-${i.k}">${i.t}</span>` };
+function inviteText(e){ const st=S.site; return `${e.name}, this is ${st.siteLead||"your site lead"} with ${st.client||"SGI"}. You're on the ${st.siteName||"New Jersey"} roster, arriving ${arrT(e)}. Your assignment page (hotel room, partner, team chat) is here: ${linkFor(e.id)}\nNo login needed. Please open it and answer the departure questions. Keep this link to yourself, it is your personal page.`; }
+/* ---------- derived ---------- */
+const list = k => Object.entries(S[k]).map(([id,v]) => ({id,...v}));
+const escorts = () => list("escorts").sort((a,b)=>(a.arriveAt||"9").localeCompare(b.arriveAt||"9") || (a.name||"").localeCompare(b.name||""));
+const name = id => S.escorts[id]?.name || "—";
+function status(e){
+  if(e.state==="cancelled") return {k:"can",t:"Cancelled"};
+  const now=Date.now(), a=D(e.arriveAt), d=D(e.departAt);
+  if(e.state==="departed" || (d && d.getTime()<=now)) return {k:"out",t:"Departed"};
+  if(e.state==="arrived" || (a && a.getTime()<=now)) return {k:"on",t:"On site"};
+  return {k:"exp",t:"Expected"};
+}
+function roomBeds(rid){
+  const occ=escorts().filter(e=>e.roomId===rid && !["can","out"].includes(status(e).k));
+  const beds=[null,null];
+  occ.filter(e=>e.bed===1||e.bed===2).forEach(e=>{ if(!beds[e.bed-1]) beds[e.bed-1]=e; });
+  occ.filter(e=>!beds.includes(e)).forEach(e=>{ const i=beds.indexOf(null); if(i>=0) beds[i]=e; });
+  return beds;
+}
+function roomCheckout(r){ if(!r) return ""; const rid=Object.keys(S.rooms).find(k=>S.rooms[k]===r) || r.id; const ds=escorts().filter(e=>e.roomId===rid && !["can","out"].includes(status(e).k));
+  if(!ds.length || ds.some(e=>!e.departAt)) return ""; return ds.map(e=>e.departAt.slice(0,10)).sort().pop(); }
+const coT = r => { const c=roomCheckout(r); return c?fD(c):"When escorts leave"; };
+const roomOcc = rid => escorts().filter(e=>e.roomId===rid && status(e).k!=="can");
+const teamMembers = tid => escorts().filter(e=>e.teamId===tid && status(e).k!=="can");
+const partnerOf = e => e.teamId ? teamMembers(e.teamId).filter(x=>x.id!==e.id) : [];
+const roommateOf = e => e.roomId ? roomOcc(e.roomId).filter(x=>x.id!==e.id) : [];
+const carsFor = e => list("cars").filter(c=>c.assignedTo===e.id);
+const teamLabel = t => { if(!t) return "—"; const n=String(t.name||"").trim(); return /^\d+$/.test(n)?`Team ${n}`:(n||"Team"); };
+const roomLabel = r => r ? `${r.hotel||"Hotel"} · Rm ${r.number||"?"}` : "—";
+const pill = e => { const s=status(e); return `<span class="pill p-${s.k}">${s.t}</span>` };
+
+/* ---------- writes ---------- */
+async function save(col, id, data){
+  if(!db) return toast("Not connected yet");
+  try{ await db.collection(col).doc(id).set(data); toast("Saved"); }
+  catch(e){ toast("Save failed: "+(e.message||e.code)); }
+}
+async function patch(col,id,data){ try{ await db.collection(col).doc(id).update(data);}catch(e){ toast("Update failed: "+(e.message||e.code)); } }
+async function remove(col,id){ try{ await db.collection(col).doc(id).delete(); toast("Removed"); }catch(e){ toast("Remove failed: "+(e.message||e.code)); } }
+let tt; function toast(m){ let t=$(".toast"); if(!t){t=document.createElement("div");t.className="toast";document.body.appendChild(t)} t.textContent=m; clearTimeout(tt); tt=setTimeout(()=>t.remove(),2200); }
+
+/* ---------- render shell ---------- */
+function renderHeader(){
+  const st=S.site;
+  document.documentElement.style.setProperty("--brand", st.brandColor||"#4E6B2A");
+  $("#hdrCo").textContent = st.companyName||"Solutions Group International";
+  $("#hdrSite").textContent = (st.siteName||"New Jersey") + " Site";
+  $("#hdrSub").textContent = [periodLabel(), st.siteLead? "Site lead "+st.siteLead : ""].filter(Boolean).join(" · ") || "Escort roster · lodging · vehicles";
+  const img=$("#hdrLogo"); if(st.logo){img.src=st.logo;img.hidden=false;$("#hdrWm").hidden=true}else{img.hidden=true;$("#hdrWm").hidden=false;$("#hdrWm").textContent=st.client||"SGI"}
+  $("#modeTag").textContent = viewMode==="admin" ? "Admin" : "Escort view";
+  $("#switchView").hidden = !isAdmin;
+  $("#switchView").textContent = viewMode==="admin" ? "Escort preview" : "Back to admin";
+  $("#tabs").hidden = viewMode!=="admin";
+  const un=unreadCount(); $("#chatTab").innerHTML = "Team chat" + (un&&!(viewMode==="admin"&&tab==="chat")?`<span class="unread">${un}</span>`:"");
+  document.querySelectorAll(".tab").forEach(b=>b.setAttribute("aria-selected", b.dataset.tab===tab));
+}
+function periodLabel(){
+  const st=S.site; if(st.periodStart||st.periodEnd) return `${fD(st.periodStart)} – ${fD(st.periodEnd)}`;
+  return "";
+}
+function render(){
+  if(HALT){ $("#app").innerHTML=HALT; return; }
+  renderHeader(); dirty=false;
+  const app=$("#app");
+  if(!db){ app.innerHTML=`<div class="panel"><div class="empty-state"><strong>Loading…</strong><span>Connecting to the site board.</span></div></div>`; return; }
+  if(viewMode==="escort") return renderEscortView(app);
+  ({overview:rOverview, week:rWeek, chat:rChat, pool:rPool, escorts:rEscorts, rooms:rRooms, cars:rCars, teams:rTeams, report:rReport, settings:rSettings})[tab](app);
+}
+
+/* ---------- ADMIN: overview ---------- */
+function rOverview(app){
+  const es=escorts().filter(e=>status(e).k!=="can"), now=Date.now(), h72=now+72*3600e3;
+  const on=es.filter(e=>status(e).k==="on");
+  const arr72=es.filter(e=>{const a=D(e.arriveAt);return a&&a>now&&a<=h72});
+  const dep72=es.filter(e=>{const d=D(e.departAt);return d&&d>now&&d<=h72});
+  const noRoom=es.filter(e=>status(e).k!=="out"&&!e.roomId), noPartner=es.filter(e=>status(e).k!=="out"&&!e.teamId);
+  const nw=weekRange(1), nextWk=es.filter(e=>inWeek(e.arriveAt,nw));
+  const svcDue=list("rooms").filter(r=>["over","today"].includes(serviceInfo(r).k));
+  const moves=[];
+  es.forEach(e=>{ if(e.arriveAt) moves.push({at:e.arriveAt,dir:"in",e}); if(e.departAt) moves.push({at:e.departAt,dir:"out",e}); });
+  moves.sort((a,b)=>a.at.localeCompare(b.at));
+  const today=new Date(); const tKey=`${today.getFullYear()}-${p2(today.getMonth()+1)}-${p2(today.getDate())}`;
+  const upcoming=moves.filter(m=>dayKey(m.at)>=tKey);
+  const byDay={}; upcoming.forEach(m=>(byDay[dayKey(m.at)]??=[]).push(m));
+  app.innerHTML=`
+  <div class="stats">
+    <div class="stat"><b>${es.length}</b><span>On roster</span></div>
+    <div class="stat"><b>${on.length}</b><span>On site now</span></div>
+    <div class="stat"><b>${arr72.length}</b><span>Arriving · 72 h</span></div>
+    <div class="stat"><b>${nextWk.length}</b><span>Coming next week</span></div>
+    <div class="stat"><b>${dep72.length}</b><span>Departing · 72 h</span></div>
+    <div class="stat ${noRoom.length?"alert":""}"><b>${noRoom.length}</b><span>Need a room</span></div>
+    <div class="stat ${noPartner.length?"alert":""}"><b>${noPartner.length}</b><span>Need a partner</span></div>
+  </div>
+  <div class="grid2">
+    ${[0,1].map(o=>{const w=weekRange(o);return `<div class="panel"><div class="hd"><h3>${o?"Next week":"This week"}</h3><span class="note mono">${fD(w.from)} – ${fD(w.to)}</span><div class="spacer"></div><button class="btn sm" data-wk-open="${o}">Week ahead</button></div><div class="bd" style="display:grid;gap:10px">${planHTML(w,true)}</div></div>`}).join("")}
+  </div>
+  <div class="grid2">
+    <div class="panel"><div class="hd"><h3>Movement board</h3><div class="spacer"></div><button class="btn sm primary" data-act="newEscort">Add escort</button></div>
+      <div class="bd">${upcoming.length? `<div class="timeline">${Object.entries(byDay).map(([k,ms])=>`
+        <div class="day"><h4>${k===tKey?"Today · ":""}${fD(k)}</h4>${ms.map(m=>`
+          <div class="mv"><span class="t">${m.dir==="in"&&m.e.arriveTbd?"TBD":fT(m.at)}</span><span class="dir ${m.dir}">${m.dir==="in"?"IN":"OUT"}</span>
+          <div><a href="#" data-edit-escort="${m.e.id}" style="color:inherit;font-weight:600">${esc(m.e.name)}</a>
+          <div class="note">${m.dir==="in"?"Arrival":"Departure"}${m.e.roomId?" · "+esc(roomLabel(S.rooms[m.e.roomId])):""}</div></div></div>`).join("")}</div>`).join("")}</div>`
+        : `<div class="empty-state"><strong>No upcoming arrivals or departures</strong><span>Add escorts with their arrival and departure times and they line up here by day.</span></div>`}
+      </div></div>
+    <div style="display:grid;gap:20px;align-content:start">
+      <div class="panel"><div class="hd"><h3>Needs attention</h3></div><div class="bd">
+        ${(noRoom.length||noPartner.length||svcDue.length||es.some(e=>!e.departAt))? `<div style="display:grid;gap:8px">
+          ${svcDue.map(r=>`<div class="row"><span class="pill p-flag">${esc(serviceInfo(r).label)}</span><a href="#" data-tab-go="rooms" style="color:inherit">${esc(roomLabel(r))}</a></div>`).join("")}
+          ${noRoom.map(e=>`<div class="row"><span class="pill p-flag">No room</span><a href="#" data-edit-escort="${e.id}" style="color:inherit">${esc(e.name)}</a></div>`).join("")}
+          ${noPartner.map(e=>`<div class="row"><span class="pill p-flag">No partner</span><a href="#" data-edit-escort="${e.id}" style="color:inherit">${esc(e.name)}</a></div>`).join("")}
+          ${es.filter(e=>!e.departAt&&status(e).k!=="out").map(e=>`<div class="row"><span class="pill p-exp">No departure</span><a href="#" data-edit-escort="${e.id}" style="color:inherit">${esc(e.name)}</a></div>`).join("")}
+        </div>` : `<p class="muted" style="margin:0">Everyone on the roster has a room, a partner and a departure time.</p>`}
+      </div></div>
+      <div class="panel"><div class="hd"><h3>On site now</h3></div><div class="bd">
+        ${on.length? `<div class="tbl-wrap"><table><tbody>${on.map(e=>`<tr class="click" data-edit-escort="${e.id}"><td><b>${esc(e.name)}</b></td><td class="muted">${esc(roomLabel(S.rooms[e.roomId]))}</td><td class="t">${e.departAt?"out "+fDT(e.departAt):'<span class="pill p-exp">No departure</span>'}${e.departBy==="escort"?' <span class="pill p-self">Self-reported</span>':""}</td></tr>`).join("")}</tbody></table></div>` : `<p class="muted" style="margin:0">Nobody is marked on site yet.</p>`}
+      </div></div>
+      <div class="panel"><div class="hd"><h3>Coming next week</h3><span class="note mono">${fD(nw.from)} – ${fD(nw.to)}</span><div class="spacer"></div><button class="btn sm" data-tab-go="week">Week ahead</button></div><div class="bd">
+        ${nextWk.length? `<div class="tbl-wrap"><table><tbody>${nextWk.map(e=>`<tr class="click" data-edit-escort="${e.id}"><td><b>${esc(e.name)}</b></td><td class="t">${arrT(e)}</td><td>${invPill(e)}</td></tr>`).join("")}</tbody></table></div>` : `<p class="muted" style="margin:0">Nobody is booked to arrive next week. When SOC sends Saturday's list, add it on the Week ahead tab.</p>`}
+      </div></div>
+    </div>
+  </div>`;
+}
+
+/* ---------- ADMIN: week ahead ---------- */
+function rWeek(app){
+  const w=weekRange(weekOff), es=escorts().filter(e=>status(e).k!=="can");
+  const on=es.filter(e=>status(e).k==="on");
+  const arr=es.filter(e=>inWeek(e.arriveAt,w)), dep=es.filter(e=>inWeek(e.departAt,w));
+  const label = weekOff===0?"This week":weekOff===1?"Next week":weekOff===-1?"Last week":(weekOff>0?`In ${weekOff} weeks`:`${-weekOff} weeks ago`);
+  const notInv=arr.filter(e=>inviteState(e).k==="flag"); const plan=weekPlan(w);
+  app.innerHTML=`
+  <div class="panel"><div class="bd wkbar"><button class="btn sm" data-wk="-1" aria-label="Previous week">◀</button><span class="lbl">${label}</span><span class="mono muted">${fD(w.from)} – ${fD(w.to)}</span><button class="btn sm" data-wk="1" aria-label="Next week">▶</button>${weekOff!==1?`<button class="btn sm" data-wk="reset">Next week</button>`:""}</div></div>
+  <div class="panel"><div class="hd"><h3>Staffing plan</h3>${plan.req.notes?`<span class="note">${esc(plan.req.notes)}</span>`:""}<div class="spacer"></div>${plan.open>0?`<button class="btn sm primary" data-tab-go="pool">Fill ${plan.open} from staffing pool</button>`:""}${notInv.length?`<span class="pill p-flag">${notInv.length} to invite</span>`:""}</div><div class="bd" style="display:grid;gap:12px">${planHTML(w)}</div></div>
+  <div class="grid2">
+    <div class="panel"><div class="hd"><h3>Staying all week</h3><span class="note">${plan.staying.length}</span></div><div class="bd">
+      ${plan.staying.length?`<div class="tbl-wrap"><table><tbody>${plan.staying.map(e=>`<tr class="click" data-edit-escort="${e.id}"><td><b>${esc(e.name)}</b>${stayT(e)?`<div class="note">${stayT(e)}</div>`:""}</td><td class="t">${e.departAt?"out "+fDT(e.departAt):'<span class="pill p-exp">No departure</span>'}</td><td>${e.departBy==="escort"?'<span class="pill p-self">Self-reported</span>':""}</td></tr>`).join("")}</tbody></table></div>`:`<p class="muted" style="margin:0">Nobody on site is staying the full week.</p>`}
+    </div></div>
+    <div class="panel"><div class="hd"><h3>Leaving this week</h3><span class="note">${plan.leaving.length}</span></div><div class="bd">
+      ${plan.leaving.length?`<div class="tbl-wrap"><table><tbody>${plan.leaving.map(e=>`<tr class="click" data-edit-escort="${e.id}"><td><b>${esc(e.name)}</b>${stayT(e)?`<div class="note">${stayT(e)}</div>`:'<div class="note">Hasn\'t said if they can extend</div>'}</td><td class="t">${fDT(e.departAt)}</td><td>${e.departBy==="escort"?'<span class="pill p-self">Self-reported</span>':""}</td></tr>`).join("")}</tbody></table></div>`:`<p class="muted" style="margin:0">Nobody already on site leaves this week.</p>`}
+    </div></div>
+  </div>
+  <div class="panel"><div class="hd"><h3>Arriving ${label.toLowerCase()}</h3><div class="spacer"></div>${arr.length?`<button class="btn sm" data-copy-all="1">Copy all invite messages</button>`:""}</div>
+  ${arr.length? `<div class="tbl-wrap"><table><thead><tr><th>Escort</th><th>Arrives</th><th>Room</th><th>Partner</th><th>Invite</th><th></th></tr></thead><tbody>
+  ${arr.map(e=>`<tr><td><a href="#" data-edit-escort="${e.id}" style="color:inherit;font-weight:600">${esc(e.name)}</a>${e.phone?`<div class="note mono">${esc(e.phone)}</div>`:""}</td>
+    <td class="t">${arrT(e)}</td><td>${e.roomId?esc(roomLabel(S.rooms[e.roomId])):'<span class="pill p-flag">None</span>'}</td>
+    <td>${e.teamId?esc(partnerOf(e).map(x=>x.name).join(", ")||teamLabel(S.teams[e.teamId])):'<span class="pill p-flag">None</span>'}</td>
+    <td>${invPill(e)}${e.invitedAt&&!e.claimedBy?`<div class="note">${fISO(e.invitedAt)}</div>`:""}</td>
+    <td style="white-space:nowrap"><button class="btn sm" data-invite="${e.id}">Copy invite</button>${!e.invitedAt&&!e.claimedBy?` <button class="btn sm" data-mark-inv="${e.id}">Mark invited</button>`:""}</td></tr>`).join("")}
+  </tbody></table></div>` : `<div class="empty-state"><strong>No arrivals booked for this week</strong><span>Paste SOC's list below to add everyone at once.</span></div>`}</div>
+  <div class="grid2">
+    <div class="panel"><div class="hd"><h3>Add SOC's list</h3></div><div class="bd" style="display:grid;gap:12px">
+      <p class="note" style="margin:0">One escort per line. Separate fields with commas or tabs: <span class="mono">Name, phone, arrival date, time</span>. Only the name is required; anything missing defaults to the date below with time TBD. Pasting straight from an email or spreadsheet works.</p>
+      <label class="f">Default arrival date<input type="date" id="in_date" value="${esc(w.from)}"></label>
+      <label class="f">Escorts<textarea id="in_list" style="min-height:140px;font-family:var(--mono);font-size:13px" placeholder="J. Rivera, 973-555-0142, 11/2, 1400\nM. Okafor, 201-555-0199, 11/3\nT. Nguyen"></textarea></label>
+      <div id="in_prev"></div>
+      <div class="row"><button class="btn" id="in_check">Preview</button><button class="btn primary" id="in_add" disabled>Add to roster</button><span class="note" id="in_msg"></span></div>
+    </div></div>
+    <div style="display:grid;gap:20px;align-content:start">
+      <div class="panel"><div class="hd"><h3>How to invite an escort</h3></div><div class="bd">
+        <ol class="steps">
+          <li>Press <b>Copy invite</b> beside their name and text it to them. That marks them Invited.</li>
+          <li>They show as <b>Joined</b> the first time they open their link. No account or login needed.</li>
+        </ol>
+        <p class="note" style="margin:10px 0 0">Each link is personal. If one gets passed around, use <b>New link</b> on the escort's record to cancel the old one.</p>
+      </div></div>
+      <div class="panel"><div class="hd"><h3>Departing ${label.toLowerCase()}</h3></div><div class="bd">
+        ${dep.length? `<div class="tbl-wrap"><table><tbody>${dep.map(e=>`<tr class="click" data-edit-escort="${e.id}"><td><b>${esc(e.name)}</b></td><td class="t">${fDT(e.departAt)}</td><td>${e.departBy==="escort"?'<span class="pill p-self">Self-reported</span>':""}</td></tr>`).join("")}</tbody></table></div>` : `<p class="muted" style="margin:0">No departures this week.</p>`}
+      </div></div>
+    </div>
+  </div>`;
+  let parsed=[];
+  $("#in_check").onclick=()=>{
+    parsed=parseList($("#in_list").value, v("in_date"));
+    const names=new Set(Object.values(R.escorts).map(e=>(e.name||"").trim().toLowerCase()));
+    parsed.forEach(p=>{ p.dup=names.has(p.name.toLowerCase()); if(!p.phone){ const hit=poolList().find(x=>(x.name||"").toLowerCase()===p.name.toLowerCase()); if(hit?.phone){ p.phone=fmtPhone(hit.phone); p.fromPool=true; } } });
+    const add=parsed.filter(p=>!p.dup);
+    $("#in_prev").innerHTML = parsed.length? `<div class="tbl-wrap"><table><thead><tr><th>Name</th><th>Phone</th><th>Arrives</th><th></th></tr></thead><tbody>${parsed.map(p=>`<tr><td>${esc(p.name)}</td><td class="mono">${esc(p.phone||"—")}${p.fromPool?' <span class="pill p-grp">from pool</span>':""}</td><td class="t">${p.tbd?fDay(p.arriveAt)+" · time TBD":fDT(p.arriveAt)}</td><td>${p.dup?'<span class="pill p-out">Already on roster</span>':'<span class="pill p-on">New</span>'}</td></tr>`).join("")}</tbody></table></div>` : `<p class="note">No names found.</p>`;
+    $("#in_add").disabled=!add.length; $("#in_add").textContent= add.length? `Add ${add.length} to roster` : "Add to roster";
+  };
+  $("#in_add").onclick=async()=>{
+    const add=parsed.filter(p=>!p.dup); if(!add.length) return;
+    $("#in_add").disabled=true; $("#in_msg").textContent="Adding…";
+    for(const p of add){ try{ await db.collection("escorts").doc(uid("e")).set({name:p.name,phone:p.phone,arriveAt:p.arriveAt,arriveTbd:p.tbd,socWeek:w.from,addedVia:"SOC list",addedAt:new Date().toISOString()}); }catch(e){ $("#in_msg").textContent="Stopped: "+(e.message||e.code); return; } }
+    toast(`Added ${add.length} escort${add.length>1?"s":""}`); dirty=false; render();
+  };
+}
+function parseList(text, defDate){
+  const out=[]; const y=(defDate||ymd(new Date())).slice(0,4);
+  for(const line of text.split(/\r?\n/)){
+    const parts=line.split(/\t|,|;|\s{2,}|\s+-\s+/).map(x=>x.trim()).filter(Boolean); if(!parts.length) continue;
+    let name=[], phone="", date="", time="";
+    for(const p of parts){
+      let m;
+      if((m=p.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/))) date=`${m[1]}-${p2(m[2])}-${p2(m[3])}`;
+      else if((m=p.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?$/))) date=`${m[3]?(m[3].length===2?"20"+m[3]:m[3]):y}-${p2(m[1])}-${p2(m[2])}`;
+      else if((m=p.match(/^(\d{1,2}):?(\d{2})\s*(am|pm)?$/i)) && +m[1]<24 && +m[2]<60){ let h=+m[1]; if(m[3]){ const pm=/pm/i.test(m[3]); if(pm&&h<12)h+=12; if(!pm&&h===12)h=0; } time=`${p2(h)}:${m[2]}`; }
+      else if(p.replace(/\D/g,"").length>=7 && /^[+\d\s().-]+$/.test(p)) phone=p;
+      else name.push(p);
+    }
+    const nm=name.join(" ").replace(/^\d+[.)]\s*/,"").trim(); if(!nm) continue;
+    const d=date||defDate||ymd(new Date());
+    out.push({name:nm, phone:fmtPhone(phone), arriveAt:`${d}T${time||"12:00"}`, tbd:!time});
+  }
+  return out;
+}
+
+/* ---------- ADMIN: staffing pool ---------- */
+function fmtPhone(v){
+  let d=String(v||"").replace(/\D/g,""); if(d.length===11&&d[0]==="1") d=d.slice(1); d=d.slice(0,10);
+  if(d.length<4) return d; if(d.length<7) return `${d.slice(0,3)}-${d.slice(3)}`; return `${d.slice(0,3)}-${d.slice(3,6)}-${d.slice(6)}`;
+}
+document.addEventListener("input", ev=>{ const el=ev.target; if(!(el instanceof HTMLInputElement) || el.getAttribute("inputmode")!=="tel") return;
+  const atEnd=el.selectionStart===el.value.length, f=fmtPhone(el.value); if(f!==el.value){ el.value=f; if(atEnd) el.setSelectionRange(f.length,f.length); } });
+const digits = p => String(p||"").replace(/\D/g,"").replace(/^1(?=\d{10}$)/,"");
+function rosterMatch(pp){
+  const d=digits(pp.phone), n=(pp.name||"").trim().toLowerCase();
+  return Object.entries(R.escorts).map(([id,e])=>({id,...e})).find(e=> (d && digits(e.phone)===d) || (!d && n && (e.name||"").trim().toLowerCase()===n) || e.poolId===pp.id);
+}
+function poolList(){
+  return Object.entries(S.pool).map(([id,p])=>({id,...p})).sort((a,b)=>(!a.name)-(!b.name) || (a.name||"").localeCompare(b.name||"") || (a.phone||"").localeCompare(b.phone||""));
+}
+function rPool(app){
+  const all=poolList(), groups=[...new Set(all.flatMap(p=>p.groups||[]))].sort();
+  const q=P.q.trim().toLowerCase(), qd=q.replace(/\D/g,"");
+  const rows=all.map(p=>({...p, on:rosterMatch(p)})).filter(p=>{
+    if(P.grp!=="all" && !(p.groups||[]).includes(P.grp)) return false;
+    if(P.grp==="armedOnly" && !p.armed) return false;
+    if(P.status==="avail" && p.on && status(p.on).k!=="out" && status(p.on).k!=="can") return false;
+    if(P.status==="roster" && !(p.on && !["out","can"].includes(status(p.on).k))) return false;
+    if(q && !((p.name||"").toLowerCase().includes(q) || (qd.length>=3 && digits(p.phone).includes(qd)) || (p.notes||"").toLowerCase().includes(q))) return false;
+    return true; });
+  const selN=[...P.sel].filter(id=>S.pool[id]).length;
+  app.innerHTML=`<div class="panel"><div class="hd"><h2>Staffing pool</h2><span class="muted">${all.length} people · ${rows.length} shown</span><div class="spacer"></div><button class="btn" data-act="newPool">Add person</button></div>
+  <div class="bd" style="display:grid;gap:12px">
+    <div class="row">
+      <input id="pq" type="search" placeholder="Search name, phone or note" value="${esc(P.q)}" style="flex:1;min-width:200px" aria-label="Search pool">
+      <select id="pgrp" aria-label="Group" style="width:auto">${opt("all","All groups",P.grp==="all")}${groups.map(g=>opt(g,g+" group",P.grp===g)).join("")}</select>
+      <select id="pst" aria-label="Status" style="width:auto">${opt("avail","Not on roster now",P.status==="avail")}${opt("roster","On roster now",P.status==="roster")}${opt("any","Everyone",P.status==="any")}</select>
+    </div>
+    <div class="row"><button class="btn primary" id="pAdd" ${selN?"":"disabled"}>Add ${selN||""} to roster</button><button class="btn" id="pCopy" ${selN?"":"disabled"}>Copy ${selN||""} numbers</button>${selN?`<button class="btn sm" id="pClr">Clear selection</button>`:""}
+      <span class="note">Added escorts land on the roster with arrival TBD; set dates on the Escorts or Week ahead tab.</span></div>
+  </div>
+  ${rows.length?`<div class="tbl-wrap"><table><thead><tr><th style="width:34px"><input type="checkbox" id="pAll" aria-label="Select all shown" ${rows.length&&rows.every(r=>P.sel.has(r.id))?"checked":""}></th><th>Name</th><th>Phone</th><th>Groups</th><th>Roster</th><th>Notes</th><th></th></tr></thead><tbody>
+  ${rows.map(p=>`<tr><td><input type="checkbox" data-psel="${p.id}" ${P.sel.has(p.id)?"checked":""} aria-label="Select ${esc(p.name||p.phone)}"></td>
+    <td><b>${esc(p.name||"")}</b>${p.name?"":'<span class="muted">No name saved</span>'}</td>
+    <td class="mono">${esc(p.phone||"")}${p.phone?"":'<span class="muted">Not shown</span>'}</td>
+    <td>${(p.groups||[]).map(g=>`<span class="pill ${g==="Armed"?"p-armed":"p-grp"}">${esc(g)}</span>`).join(" ")}</td>
+    <td>${p.on?`<a href="#" data-edit-escort="${p.on.id}" style="color:inherit">${pill(p.on)}</a>`:'<span class="muted">—</span>'}</td>
+    <td class="note">${esc(p.notes||"")}</td>
+    <td style="white-space:nowrap"><button class="btn sm" data-pool-edit="${p.id}">Edit</button>${p.on&&!["out","can"].includes(status(p.on).k)?"":` <button class="btn sm" data-pool-add="${p.id}">Add</button>`}</td></tr>`).join("")}
+  </tbody></table></div>`:`<div class="empty-state"><strong>${all.length?"Nobody matches":"The staffing pool is empty"}</strong><span>${all.length?"Change the search or filters.":"Add people you can staff from."}</span></div>`}</div>`;
+  const pq=$("#pq"); pq.oninput=()=>{ P.q=pq.value; const pos=pq.selectionStart; dirty=false; render(); const n=$("#pq"); n.focus(); try{n.setSelectionRange(pos,pos)}catch(e){} };
+  $("#pgrp").onchange=e=>{ P.grp=e.target.value; render(); };
+  $("#pst").onchange=e=>{ P.status=e.target.value; render(); };
+  app.querySelectorAll("[data-psel]").forEach(c=>c.onchange=()=>{ c.checked?P.sel.add(c.dataset.psel):P.sel.delete(c.dataset.psel); dirty=false; render(); });
+  const pa=$("#pAll"); if(pa) pa.onchange=()=>{ rows.forEach(r=>pa.checked?P.sel.add(r.id):P.sel.delete(r.id)); dirty=false; render(); };
+  const clr=$("#pClr"); if(clr) clr.onclick=()=>{ P.sel.clear(); render(); };
+  $("#pCopy").onclick=()=>{ const ps=[...P.sel].map(id=>S.pool[id]).filter(p=>p&&p.phone); copyText(ps.map(p=>`${p.name||"(no name)"}: ${p.phone}`).join("\n"), `${ps.length} numbers copied`, []); };
+  $("#pAdd").onclick=async()=>{ const ids=[...P.sel].filter(id=>S.pool[id]); let n=0; for(const id of ids){ if(await addFromPool(id,true)) n++; } P.sel.clear(); toast(`Added ${n} to roster`); render(); };
+}
+async function addFromPool(id, quiet){
+  const p={id,...S.pool[id]}; const on=rosterMatch(p);
+  if(on && !["out","can"].includes(status(on).k)){ if(!quiet) toast(`${p.name||p.phone} is already on the roster`); return false; }
+  const w=weekRange(1);
+  try{
+    if(on){ await db.collection("escorts").doc(on.id).set({...R.escorts[on.id], state:"", arriveAt:`${w.from}T12:00`, arriveTbd:true, departAt:"", departSetAt:new Date().toISOString(), roomId:"", teamId:"", invitedAt:"", poolId:id}); }
+    else await db.collection("escorts").doc(uid("e")).set({name:p.name||fmtPhone(p.phone), phone:fmtPhone(p.phone), arriveAt:`${w.from}T12:00`, arriveTbd:true, poolId:id, addedVia:"Staffing pool", addedAt:new Date().toISOString(), notes:(p.armed?"Armed group. ":"")+(p.notes||"")});
+    if(!quiet) toast(`${p.name||p.phone} added for next week (arrival TBD)`); return true;
+  }catch(e){ toast("Couldn't add: "+(e.message||e.code)); return false; }
+}
+function editPool(id){
+  const p=id? {id,...S.pool[id]} : {id:uid("p"), groups:[]};
+  modal(id?"Edit pool contact":"Add to staffing pool", `
+    <div class="fg"><label class="f">Name<input id="m_pname" value="${esc(p.name||"")}"></label>
+    <label class="f">Phone<input id="m_pphone" inputmode="tel" placeholder="555-555-5555" value="${esc(fmtPhone(p.phone))}"></label></div>
+    <div class="row"><label class="check"><input type="checkbox" id="m_parmed" ${p.armed?"checked":""}> Armed qualified</label></div>
+    <label class="f">Groups (comma separated)<input id="m_pgroups" value="${esc((p.groups||[]).join(", "))}"></label>
+    <label class="f">Notes<textarea id="m_pnotes" placeholder="Availability, licenses, preferences">${esc(p.notes||"")}</textarea></label>`,
+  async()=>{ if(!v("m_pname")&&!v("m_pphone")){ toast("Enter a name or phone"); return false; }
+    await save("pool", p.id, {...(S.pool[p.id]||{}), name:v("m_pname"), phone:fmtPhone(v("m_pphone")), armed:$("#m_parmed").checked, groups:v("m_pgroups").split(",").map(x=>x.trim()).filter(Boolean), notes:v("m_pnotes")}); },
+  id? ()=>save("pool", id, {deleted:true}) : null);
+}
+
+async function setRental(eid, yes, quiet){
+  await patch("escorts", eid, {carInNameAdmin:{has:!!yes, at:new Date().toISOString()}});
+  if(!yes) for(const c of list("cars").filter(c=>c.assignedTo===eid)) await patch("cars", c.id, {assignedTo:""});
+  if(!quiet) toast(`${name(eid)}: rental ${yes?"in their name":"none"}`);
+}
+function quickSetupHTML(es){
+  const rooms=list("rooms").sort((a,b)=>roomLabel(a).localeCompare(roomLabel(b),undefined,{numeric:true}));
+  const teams=list("teams").sort((a,b)=>String(a.name||"").localeCompare(String(b.name||""),undefined,{numeric:true}));
+  const live=es.filter(e=>!["can","out"].includes(status(e).k));
+  if(!live.length) return `<p class="muted" style="margin:0">Add escorts first.</p>`;
+  return `<div class="tbl-wrap"><table><thead><tr><th>Escort</th><th>Room</th><th>Team</th><th>Rental in name</th></tr></thead><tbody>
+  ${live.map(e=>`<tr><td><b>${esc(e.name)}</b></td>
+    <td><select data-qs-room="${e.id}" aria-label="Room for ${esc(e.name)}">${opt("","No room",!e.roomId)}${rooms.map(r=>{const occ=roomOcc(r.id).filter(x=>x.id!==e.id);return opt(r.id,`${roomLabel(r)} (${occ.length}/2)`,e.roomId===r.id,occ.length>=2)}).join("")}</select></td>
+    <td><select data-qs-team="${e.id}" aria-label="Team for ${esc(e.name)}">${opt("","No team",!e.teamId)}${teams.map(t=>{const m=teamMembers(t.id).filter(x=>x.id!==e.id);return opt(t.id,`${teamLabel(t)} (${m.length}/2)`,e.teamId===t.id,m.length>=2)}).join("")}</select></td>
+    <td style="white-space:nowrap"><label class="check" style="display:inline-flex"><input type="radio" name="qs_r_${e.id}" data-qs-rent="${e.id}" value="yes" ${hasRental(e)?"checked":""}> Yes</label> <label class="check" style="display:inline-flex;margin-left:10px"><input type="radio" name="qs_r_${e.id}" data-qs-rent="${e.id}" value="no" ${e.carInName&&e.carInName.has===false&&!carsFor(e).length?"checked":""}> No</label></td></tr>`).join("")}
+  </tbody></table></div>
+  <p class="note" style="margin:8px 0 0">Changes save as you pick. ${!rooms.length?"Add rooms on the Hotel rooms tab to assign them here. ":""}${!teams.length?"Add teams on the Partners tab to assign them here.":""}</p>`;
+}
+
+/* ---------- ADMIN: escorts ---------- */
+function rEscorts(app){
+  const es=escorts();
+  app.innerHTML=`<div class="panel"><div class="hd"><h3>Quick setup</h3><span class="note">Set everyone's room, team and rental in one place</span><div class="spacer"></div><button class="btn sm" id="qsToggle">${P.qs?"Hide":"Show"}</button></div>${P.qs?`<div class="bd">${quickSetupHTML(es)}</div>`:""}</div>
+  <div class="panel"><div class="hd"><h2>Escort roster</h2><span class="muted">${es.length} total</span><div class="spacer"></div><button class="btn primary" data-act="newEscort">Add escort</button></div>
+  ${es.length? `<div class="tbl-wrap"><table><thead><tr><th>Name</th><th>Status</th><th>Arrives</th><th>Departs</th><th>Room</th><th>Roommate</th><th>Partner</th><th>Rental car in name</th><th>Invite</th></tr></thead><tbody>
+  ${es.map(e=>{const car=carsFor(e)[0];return `<tr class="click" data-edit-escort="${e.id}">
+    <td><b>${esc(e.name)}</b>${e.phone?`<div class="note mono">${esc(e.phone)}</div>`:""}</td><td>${pill(e)}</td>
+    <td class="t">${arrT(e)}</td>
+    <td class="t">${fDT(e.departAt)}${e.departBy==="escort"?`<div><span class="pill p-self">Self-reported</span></div>`:""}${stayT(e)?`<div class="note">${stayT(e)}</div>`:""}</td>
+    <td>${e.roomId? esc(roomLabel(S.rooms[e.roomId])) : '<span class="pill p-flag">None</span>'}</td>
+    <td>${esc(roommateOf(e).map(x=>x.name).join(", ")||"—")}</td>
+    <td>${e.teamId? `${esc(teamLabel(S.teams[e.teamId]))}<div class="note">${esc(partnerOf(e).map(x=>x.name).join(", ")||"open slot")}</div>` : '<span class="pill p-flag">None</span>'}</td>
+    <td>${car? `${esc(car.vehicle||"Yes")}` : carIn(e)? `${esc(carNameT(e))}<div class="note">Reported by escort</div>` : e.carInName? '<span class="muted">None in name</span>' : '<span class="muted">—</span>'}</td><td>${invPill(e)}</td></tr>`}).join("")}
+  </tbody></table></div>` : `<div class="empty-state"><strong>No escorts on the roster yet</strong><span>Add each escort with arrival and departure times, then assign rooms, partners and rental cars.</span><button class="btn primary" data-act="newEscort">Add the first escort</button></div>`}</div>
+  ${es.length? `<div class="panel"><div class="hd"><h3>Personal links</h3><span class="note">Send each escort their own link. It opens straight to their assignment.</span></div><div class="bd" style="display:grid;gap:8px">
+    ${es.map(e=>`<div class="row" style="flex-wrap:nowrap"><span style="min-width:140px;font-weight:600">${esc(e.name)}</span><div class="linkbox" style="flex:1;min-width:0"><input readonly id="lk_${e.id}" value="${esc(linkFor(e.id))}"><button class="btn sm" data-copy="lk_${e.id}">Copy</button></div></div>`).join("")}
+    <p class="note" style="margin:0">Links work on any phone with no login. Each one only opens that escort&#39;s own page.</p>
+  </div></div>`:""}`;
+  $("#qsToggle").onclick=()=>{ P.qs=!P.qs; ls.set("njsb_qs",P.qs?"1":""); render(); };
+  app.querySelectorAll("[data-qs-room]").forEach(sel=>sel.onchange=async()=>{ dirty=false; const rid=sel.value, eid=sel.dataset.qsRoom; if(rid && roomOcc(rid).filter(x=>x.id!==eid).length>=2) return toast("That room is full");
+    const bi=rid? roomBeds(rid).indexOf(null) : -1; await patch("escorts", eid, {roomId:rid, bed:rid?bi+1:null}); toast(rid?`${name(eid)} → ${roomLabel(S.rooms[rid])}`:`${name(eid)}: no room`); });
+  app.querySelectorAll("[data-qs-team]").forEach(sel=>sel.onchange=async()=>{ dirty=false; const tid=sel.value, eid=sel.dataset.qsTeam; await patch("escorts", eid, {teamId:tid}); toast(tid?`${name(eid)} → ${teamLabel(S.teams[tid])}`:`${name(eid)}: no team`); });
+  app.querySelectorAll("[data-qs-rent]").forEach(r=>r.onchange=()=>{ if(r.checked){ dirty=false; setRental(r.dataset.qsRent, r.value==="yes"); } });
+}
+function linkFor(id){ const base=(S.site.linkBase||(location.origin+location.pathname)).replace(/#.*$/,""); const t=R.escorts[id]?.token; return t? `${base}#${t}` : "Link being created…"; }
+
+/* ---------- ADMIN: rooms ---------- */
+function rRooms(app){
+  const rs=list("rooms").sort((a,b)=>(a.hotel||"").localeCompare(b.hotel||"")||(a.number||"").localeCompare(b.number||"",undefined,{numeric:true}));
+  const hotels=[...new Set(rs.map(r=>r.hotel||"Hotel"))];
+  const need=escorts().filter(e=>!e.roomId&&!["can","out"].includes(status(e).k));
+  const openRooms=rs.filter(r=>roomOcc(r.id).length<2);
+  app.innerHTML=`
+  <div class="grid2">
+    <div class="panel"><div class="hd"><h3>Assign rooms</h3><span class="note">${need.length} need a room · ${openRooms.reduce((n,r)=>n+2-roomOcc(r.id).length,0)} open beds</span></div><div class="bd">
+      ${need.length? `<div style="display:grid;gap:8px">${need.map(e=>`<div class="row" style="flex-wrap:nowrap"><div style="flex:1;min-width:0"><b>${esc(e.name)}</b><div class="note">${status(e).t} · arrives ${arrT(e)}</div></div>
+        <select data-assign-room="${e.id}" aria-label="Room for ${esc(e.name)}" style="max-width:240px">${opt("","Choose room…",true)}${openRooms.map(r=>{const o=roomOcc(r.id);return opt(r.id,`${roomLabel(r)}${o.length?" · with "+o.map(x=>x.name).join(", "):" · empty"}`,false)}).join("")}</select></div>`).join("")}</div>
+      ${openRooms.length?"":`<p class="note" style="margin:10px 0 0">Every room is full. Add a room below to free up beds.</p>`}`
+      : `<p class="muted" style="margin:0">Everyone on site or arriving has a room.</p>`}
+    </div></div>
+    <div class="panel"><div class="hd"><h3>Who's in what room</h3></div><div class="bd" style="display:grid;gap:10px">
+      <input id="dirQ" type="search" placeholder="Type a name or room number" aria-label="Search rooms">
+      <div id="dirOut">${dirHTML("")}</div>
+    </div></div>
+  </div>
+  <div class="panel"><div class="hd"><h3>Room servicing</h3><div class="spacer"></div><button class="btn sm" id="svcPost">Post today's service list to chat</button></div><div class="bd">${housekeepingHTML()}</div></div>
+  <div class="panel"><div class="hd"><h2>Hotel rooms</h2><span class="muted">${rs.length} rooms · ${rs.reduce((n,r)=>n+roomOcc(r.id).length,0)} of ${rs.length*2} beds filled</span><div class="spacer"></div><button class="btn primary" data-act="newRoom">Add room</button></div>
+  <div class="bd">${rs.length? hotels.map(h=>`<div style="display:grid;gap:10px;margin-bottom:18px"><h3>${esc(h)}</h3><div class="cards">${rs.filter(r=>(r.hotel||"Hotel")===h).map(r=>{const occ=roomBeds(r.id).filter(Boolean);return `
+    <div class="rcard ${occ.length>=2?"full":""}"><div class="top"><span class="nm">Rm ${esc(r.number||"?")}</span><span class="pill ${occ.length>=2?"p-on":occ.length?"p-exp":"p-out"}">${occ.length}/2</span><button class="btn sm" data-edit-room="${r.id}">Edit</button></div>
+    ${roomBeds(r.id).map((e,i)=>`<div class="bed ${e?"":"open"}"><label for="bed_${r.id}_${i}">Escort ${i+1}</label><select id="bed_${r.id}_${i}" data-bed-room="${r.id}" data-bed-i="${i}">${bedOptions(r.id,e)}</select>${e?`<span class="note">${status(e).t}${e.departAt?" · out "+fDT(e.departAt):""}${e.phone?` · <span class="mono">${esc(e.phone)}</span>`:""}</span>`:""}</div>`).join("")}
+    <div class="row" style="gap:6px">${svcPill(r)}</div>
+    <div class="note">${r.checkIn?`<span class="mono">${fD(r.checkIn)} → ${coT(r)}</span>`:""}</div></div>`}).join("")}</div></div>`).join("")
+    : `<div class="empty-state"><strong>No rooms added</strong><span>Add each hotel room. Every room holds two escorts; assign them from the room card or the escort's record.</span><button class="btn primary" data-act="newRoom">Add the first room</button></div>`}</div></div>`;
+  bindDir();
+  $("#svcPost").onclick=()=>{ const t=todayYMD(); const rs=list("rooms").filter(r=>{const si=serviceInfo(r);return ["over","today"].includes(si.k);});
+    openRequests().forEach(({room})=>{ if(room && !rs.find(x=>x.id===room.id)) rs.push({id:Object.keys(S.rooms).find(k=>S.rooms[k]===room),...room}); });
+    if(!rs.length) return toast("No rooms are due for service today");
+    sendChat(`ROOM SERVICE TODAY (${fD(t)})\n`+rs.map(r=>`${roomLabel(r)} — ${roomOcc(r.id).filter(e=>status(e).k!=="out").map(e=>e.name).join(" & ")||"empty"}`).join("\n")+`\nPlease leave your room ready for housekeeping.`).then(ok=>ok&&toast("Posted to team chat")); };
+  app.querySelectorAll("[data-bed-room]").forEach(sel=>sel.onchange=()=>{ dirty=false; setBed(sel.dataset.bedRoom, +sel.dataset.bedI, sel.value); });
+  app.querySelectorAll("[data-assign-room]").forEach(sel=>sel.onchange=async()=>{ const rid=sel.value; if(!rid) return; if(roomOcc(rid).length>=2) return toast("That room just filled up"); dirty=false; const bi=roomBeds(rid).indexOf(null); await patch("escorts", sel.dataset.assignRoom, {roomId:rid, bed:bi+1}); toast(`${name(sel.dataset.assignRoom)} → ${roomLabel(S.rooms[rid])}`); });
+}
+
+function bedOptions(rid, cur){
+  const es=escorts().filter(e=>!["can","out"].includes(status(e).k)).sort((a,b)=>(!!a.roomId)-(!!b.roomId) || (a.name||"").localeCompare(b.name||""));
+  const none=es.filter(e=>!e.roomId), other=es.filter(e=>e.roomId && e.roomId!==rid);
+  return opt("", cur?"— Empty this bed —":"Open bed — choose escort", !cur)
+    + (cur?opt(cur.id,cur.name,true):"")
+    + (none.length?`<optgroup label="Needs a room">${none.map(e=>opt(e.id,e.name,false)).join("")}</optgroup>`:"")
+    + (other.length?`<optgroup label="Move from another room">${other.map(e=>opt(e.id,`${e.name} (${roomLabel(S.rooms[e.roomId])})`,false)).join("")}</optgroup>`:"");
+}
+async function setBed(rid, i, eid){
+  const beds=roomBeds(rid), cur=beds[i];
+  if(cur && cur.id===eid) return;
+  if(cur) await patch("escorts", cur.id, {roomId:"", bed:null});
+  if(eid){ const other=beds[1-i]; if(other && other.id===eid){ await patch("escorts", eid, {bed:i+1}); }
+           else await patch("escorts", eid, {roomId:rid, bed:i+1}); }
+  toast(eid? `${name(eid)} → ${roomLabel(S.rooms[rid])}, escort ${i+1}` : `Escort ${i+1} cleared in ${roomLabel(S.rooms[rid])}`);
+}
+
+/* ---------- room servicing ---------- */
+const addDays=(ymdStr,n)=>{ const d=new Date(ymdStr+"T12:00"); d.setDate(d.getDate()+n); return ymd(d); };
+const todayYMD=()=>ymd(new Date());
+function serviceInfo(r){
+  const every=+(r.serviceEvery ?? S.site.serviceEvery ?? 7) || 0;
+  let due = r.serviceNext || "";
+  if(!due && every){ const base=r.lastServiced||r.checkIn; if(base) due=addDays(base, every); }
+  const co=roomCheckout(r); if(co && due && due>=co) due="";
+  const t=todayYMD();
+  const days = due ? Math.round((new Date(due+"T12:00")-new Date(t+"T12:00"))/864e5) : null;
+  let k="none", label="No service scheduled";
+  if(r.serviceHold){ k="hold"; label="On hold (do not disturb)"; }
+  else if(due){ if(days<0){k="over";label=`Overdue ${-days} day${days===-1?"":"s"}`} else if(days===0){k="today";label="Service today"} else if(days===1){k="soon";label="Service tomorrow"} else {k="later";label=`Service ${fD(due)}`} }
+  return {every, due, days, k, label};
+}
+const svcPill = r => { const si=serviceInfo(r); const cls={over:"p-flag",today:"p-depart",soon:"p-exp",later:"p-grp",hold:"p-out",none:"p-out"}[si.k]; return `<span class="pill ${cls}">${esc(si.label)}</span>`; };
+const SVC_TYPES=["Window bed","Bathroom bed","Whole room","Towels only"];
+const openReq = e => e && e.svc && e.svc.type && !e.svc.doneAt ? e.svc : null;
+const reqPill = e => { const r=openReq(e); return r?`<span class="pill p-depart">${esc(r.type)}</span>`:""; };
+function openRequests(){ return escorts().filter(e=>openReq(e) && !["can","out"].includes(status(e).k)).map(e=>({e, r:openReq(e), room:S.rooms[e.roomId]})).sort((a,b)=>roomLabel(a.room).localeCompare(roomLabel(b.room),undefined,{numeric:true})); }
+async function markServiced(rid){ const d=todayYMD(), now=new Date().toISOString();
+  await patch("rooms", rid, {lastServiced:d, serviceNext:"", serviceLog:[...((S.rooms[rid]||{}).serviceLog||[]).slice(-29), d]});
+  for(const e of roomOcc(rid)) if(openReq(e) && e.claimedBy){ try{ await db.collection("checkins").doc(e.claimedBy).update({svc:{...e.svc, doneAt:now}}); }catch(err){} }
+  toast(`${roomLabel(S.rooms[rid])} marked serviced today`); }
+function housekeepingHTML(){
+  const rs=list("rooms").map(r=>({...r, si:serviceInfo(r), occ:roomOcc(r.id).filter(e=>status(e).k!=="out")}))
+    .sort((a,b)=> (a.si.due||"9999").localeCompare(b.si.due||"9999") || roomLabel(a).localeCompare(roomLabel(b),undefined,{numeric:true}));
+  if(!rs.length) return `<p class="muted" style="margin:0">Add rooms to track servicing.</p>`;
+  const due=rs.filter(r=>["over","today"].includes(r.si.k)).length;
+  const reqs=openRequests();
+  return `${reqs.length?`<div style="display:grid;gap:6px;margin-bottom:12px"><b>Escort requests (${reqs.length})</b>${reqs.map(({e,r,room})=>`<div class="row"><span class="pill p-depart">${esc(r.type)}</span><b>${esc(room?roomLabel(room):"No room")}</b><span>${esc(e.name)}</span><span class="note">${fISO(r.at)}${r.note?` — “${esc(r.note)}”`:""}</span></div>`).join("")}</div>`:`<p class="note" style="margin:0 0 6px">No open requests from escorts.</p>`}
+  <p class="note" style="margin:0 0 10px">${due?`<b>${due} room${due>1?"s":""} due or overdue.</b> `:""}Default schedule: every ${S.site.serviceEvery??7} days from check-in or last service (change it in Site settings or per room).</p>
+  <div class="tbl-wrap"><table><thead><tr><th>Room</th><th>Occupants</th><th>Requests</th><th>Last serviced</th><th>Next service</th><th></th></tr></thead><tbody>
+  ${rs.map(r=>`<tr><td><a href="#" data-edit-room="${r.id}" style="color:inherit"><b>${esc(roomLabel(r))}</b></a></td><td>${esc(r.occ.map(e=>e.name).join(" & ")||"Empty")}</td>
+    <td>${r.occ.map(e=>openReq(e)?`<div>${reqPill(e)} <span class="note">${esc(e.name)}</span></div>`:"").join("")||'<span class="muted">—</span>'}</td>
+    <td class="t">${r.lastServiced?fD(r.lastServiced):"—"}</td><td>${svcPill(r)}${r.serviceNotes?`<div class="note">${esc(r.serviceNotes)}</div>`:""}</td>
+    <td style="white-space:nowrap"><button class="btn sm" data-serviced="${r.id}">Serviced today</button></td></tr>`).join("")}
+  </tbody></table></div>`;
+}
+
+function dirHTML(q){
+  q=(q||"").trim().toLowerCase();
+  const hl = t => { const s=esc(t); if(!q) return s; const i=String(t).toLowerCase().indexOf(q); return i<0? s : esc(String(t).slice(0,i))+"<mark>"+esc(String(t).slice(i,i+q.length))+"</mark>"+esc(String(t).slice(i+q.length)); };
+  const rows=list("rooms").sort((a,b)=>roomLabel(a).localeCompare(roomLabel(b),undefined,{numeric:true})).map(r=>({r,occ:roomOcc(r.id).filter(e=>status(e).k!=="out")}))
+    .filter(({r,occ})=>!q || String(r.number||"").toLowerCase().includes(q) || (r.hotel||"").toLowerCase().includes(q) || occ.some(e=>(e.name||"").toLowerCase().includes(q)));
+  if(!rows.length) return `<p class="muted" style="margin:0">${q?"No room or person matches “"+esc(q)+"”.":"No rooms added yet."}</p>`;
+  return `<div class="tbl-wrap"><table class="dir-hit"><thead><tr><th>Hotel</th><th>Room</th><th>Occupants</th></tr></thead><tbody>${rows.map(({r,occ})=>`<tr><td>${hl(r.hotel||"—")}</td><td class="mono"><b>${hl(r.number||"?")}</b></td><td>${occ.length?occ.map(e=>`${hl(e.name)} <span class="note">${status(e).t}</span>`).join("<br>"):'<span class="muted">Empty</span>'}</td></tr>`).join("")}</tbody></table></div>`;
+}
+function bindDir(){ const q=$("#dirQ"); if(q) q.oninput=()=>{ $("#dirOut").innerHTML=dirHTML(q.value); }; }
+
+/* ---------- team chat ---------- */
+const onSiteEscorts = () => escorts().filter(e=>status(e).k==="on");
+function allMsgs(){
+  const out=[];
+  for(const [u,d] of Object.entries(S.chat)){ for(const m of (d?.msgs||[])) out.push({...m,uid:u,lead:!!d.lead,escortId:d.escortId}); }
+  return out.sort((a,b)=>(a.t||"").localeCompare(b.t||"")).slice(-300);
+}
+function unreadCount(){ const seen=ls.get("njsb_seen")||""; return allMsgs().filter(m=>m.t>seen&&m.uid!==myUid).length; }
+function chatAllowed(){ if(isAdmin) return true; const e=ESCORT_ID&&S.escorts[ESCORT_ID]; return !!(e && status(e).k==="on"); }
+function msgsHTML(){
+  const ms=allMsgs();
+  if(!ms.length) return `<div class="empty-state"><strong>No messages yet</strong><span>Messages here reach everyone checked in as on site.</span></div>`;
+  return ms.map(m=>{ const who = m.lead ? `<span class="lead">${esc(S.site.siteLead||"Site lead")} · Site lead</span>` : esc(name(m.escortId)||"Escort");
+    return `<div class="msg ${m.uid===myUid?"mine":""} ${m.lead?"lead":""}"><div class="who">${m.uid===myUid?"You":who} · <span class="mono">${fISO(m.t)}</span></div><div class="txt">${esc(m.text)}</div></div>`; }).join("");
+}
+function chatPanelHTML(){
+  const on=onSiteEscorts();
+  return `<div class="panel chat"><div class="hd"><h3>Team chat</h3><span class="note">${on.length} on site</span><div class="spacer"></div>
+    ${isAdmin?`<button class="btn sm" id="chatRooms">Post room list</button><button class="btn sm" id="chatPhones">Copy phone numbers</button>`:""}</div>
+    <div class="chat-log" id="chatLog" aria-live="polite">${msgsHTML()}</div>
+    <form class="chat-in" id="chatForm"><textarea id="chatIn" placeholder="Message everyone on site" aria-label="Message" maxlength="1000"></textarea><button class="btn primary" id="chatSend" type="submit">Send</button></form></div>`;
+}
+function bindChat(){
+  const log=$("#chatLog"); if(!log) return; log.scrollTop=log.scrollHeight; markSeen();
+  const inp=$("#chatIn");
+  inp.onkeydown=e=>{ if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); $("#chatForm").requestSubmit(); } };
+  $("#chatForm").onsubmit=async e=>{ e.preventDefault(); const t=inp.value.trim(); if(!t) return; $("#chatSend").disabled=true; if(await sendChat(t)){ inp.value=""; dirty=false; } $("#chatSend").disabled=false; inp.focus(); };
+  const pr=$("#chatRooms"); if(pr) pr.onclick=()=>{ const txt=roomListText(); if(!txt) return toast("No rooms to post"); sendChat(txt); };
+  const ph=$("#chatPhones"); if(ph) ph.onclick=()=>{ const on=onSiteEscorts().filter(e=>e.phone); if(!on.length) return toast("No phone numbers on file for on-site escorts"); copyText(on.map(e=>`${e.name}: ${e.phone}`).join("\n"), `${on.length} numbers copied`, []); };
+}
+function markSeen(){ const ms=allMsgs(); if(ms.length) ls.set("njsb_seen", ms[ms.length-1].t); }
+function updateChatLog(){ const log=$("#chatLog"); if(!log) return; const atBottom=log.scrollHeight-log.scrollTop-log.clientHeight<60; log.innerHTML=msgsHTML(); if(atBottom) log.scrollTop=log.scrollHeight; markSeen(); renderHeader(); }
+function roomListText(){
+  const rs=list("rooms").sort((a,b)=>roomLabel(a).localeCompare(roomLabel(b),undefined,{numeric:true})); if(!rs.length) return "";
+  const byH={}; rs.forEach(r=>{ const o=roomOcc(r.id).filter(e=>status(e).k!=="out"); if(o.length) (byH[r.hotel||"Hotel"]??=[]).push(`Rm ${r.number}: ${o.map(e=>e.name).join(" & ")}`); });
+  const parts=Object.entries(byH).map(([h,l])=>`${h}\n${l.join("\n")}`); return parts.length? `ROOM LIST\n${parts.join("\n\n")}` : "";
+}
+async function sendChat(text){
+  if(!db||!myUid){ toast("Not connected yet"); return false; }
+  const doc=S.chat[myUid]||{}; const m={id:uid("m"),t:new Date().toISOString(),text:text.slice(0,1000)};
+  const who = isAdmin ? {lead:true, escortId:""} : {lead:false, escortId:S.checkins[myUid]?.escortId||""};
+  try{ await db.collection("chat").doc(myUid).set({...who, msgs:[...(doc.msgs||[]).slice(-149), m]}); return true; }
+  catch(e){ toast("Message not sent: "+(e.message||e.code)); return false; }
+}
+function rChat(app){
+  const on=onSiteEscorts();
+  app.innerHTML=`<div class="grid2 chatgrid">
+    ${chatPanelHTML()}
+    <div style="display:grid;gap:20px;align-content:start">
+      <div class="panel"><div class="hd"><h3>In this chat</h3></div><div class="bd">
+        ${on.length? `<div style="display:grid;gap:6px">${on.map(e=>`<div class="row"><b style="flex:1">${esc(e.name)}</b>${e.claimedBy?'<span class="pill p-joined">Can see chat</span>':'<span class="pill p-flag">Not joined</span>'}</div>`).join("")}</div>` : `<p class="muted" style="margin:0">Nobody is checked as on site yet.</p>`}
+        <p class="note" style="margin:10px 0 0">Membership follows the roster: escorts join when they're on site and drop off when they depart. Escorts marked "Not joined" haven't opened their page yet.</p>
+      </div></div>
+      <div class="panel"><div class="hd"><h3>Who's in what room</h3></div><div class="bd" style="display:grid;gap:10px">
+        <input id="dirQ" type="search" placeholder="Type a name or room number" aria-label="Search rooms"><div id="dirOut">${dirHTML("")}</div>
+      </div></div>
+    </div></div>`;
+  bindChat(); bindDir();
+}
+
+/* ---------- ADMIN: cars ---------- */
+function rCars(app){
+  const cs=list("cars").sort((a,b)=>(a.vehicle||"").localeCompare(b.vehicle||""));
+  const rep=escorts().filter(e=>carIn(e) && !cs.some(c=>c.assignedTo===e.id) && !["can","out"].includes(status(e).k));
+  const noAns=escorts().filter(e=>!e.carInName && e.claimedBy && !["can","out"].includes(status(e).k));
+  app.innerHTML=`<div class="panel"><div class="hd"><h3>Who has a rental in their name</h3></div><div class="bd" style="display:grid;gap:8px">
+    ${[...cs.filter(c=>c.assignedTo&&S.escorts[c.assignedTo]).map(c=>`<div class="row"><b>${esc(name(c.assignedTo))}</b><span>${esc(c.vehicle||"")}</span></div>`),
+       ...rep.map(e=>`<div class="row"><b>${esc(e.name)}</b><span>${esc(carIn(e).vehicle||"")}</span><span class="pill p-self">Reported by escort</span><button class="btn sm" data-car-from="${e.id}">Add to cars</button></div>`)].join("") || '<p class="muted" style="margin:0">Nobody yet. Escorts answer this on their page.</p>'}
+    ${noAns.length?`<p class="note" style="margin:0">Haven't answered yet: ${esc(noAns.map(e=>e.name).join(", "))}</p>`:""}
+  </div></div>
+  <div class="panel"><div class="hd"><h2>Rental cars</h2><span class="muted">${cs.length} vehicles · ${cs.filter(c=>!c.assignedTo).length} unassigned</span><div class="spacer"></div><button class="btn primary" data-act="newCar">Add car</button></div>
+  ${cs.length? `<div class="tbl-wrap"><table><thead><tr><th>Vehicle</th><th>Agency</th><th>Rented in name of</th><th>Partner riding</th><th>Pick-up</th><th>Return</th></tr></thead><tbody>
+  ${cs.map(c=>{const e=S.escorts[c.assignedTo];return `<tr class="click" data-edit-car="${c.id}"><td><b>${esc(c.vehicle||"—")}</b>${c.color?`<div class="note">${esc(c.color)}</div>`:""}</td>
+  <td>${esc(c.agency||"—")}</td>
+  <td>${e? `<b>${esc(e.name)}</b>` : '<span class="pill p-flag">Unassigned</span>'}</td>
+  <td>${e? esc(partnerOf({id:c.assignedTo,...e}).map(x=>x.name).join(", ")||"—") : "—"}</td>
+  <td class="t">${fDT(c.pickupAt)}</td><td class="t">${fDT(c.returnAt)}</td></tr>`}).join("")}</tbody></table></div>`
+  : `<div class="empty-state"><strong>No rental cars added</strong><span>Add each rental and whose name it's rented in.</span><button class="btn primary" data-act="newCar">Add the first car</button></div>`}</div>`;
+}
+
+/* ---------- ADMIN: teams ---------- */
+function rTeams(app){
+  const ts=list("teams").sort((a,b)=>String(a.name||"").localeCompare(String(b.name||""),undefined,{numeric:true}));
+  const unpaired=escorts().filter(e=>!e.teamId&&!["can","out"].includes(status(e).k));
+  app.innerHTML=`<div class="panel"><div class="hd"><h2>Partner teams</h2><span class="muted">${ts.length} teams</span><div class="spacer"></div><button class="btn primary" data-act="newTeam">Add team</button></div>
+  <div class="bd">${ts.length? `<div class="cards">${ts.map(t=>{const m=teamMembers(t.id);const holders=m.filter(hasRental);return `
+    <button class="card" data-edit-team="${t.id}"><div class="top"><span class="nm">${esc(teamLabel(t))}</span></div>
+    <div class="slots">${[0,1].map(i=>m[i]?`<div class="slot">${esc(m[i].name)}${hasRental(m[i])?'<div class="note">Rental in name</div>':""}</div>`:`<div class="slot empty">Open slot</div>`).join("")}</div>
+    ${holders.length?`<div class="note">${holders.length===2?"2 rentals — one in each member's name":`Rental in ${esc(holders[0].name)}'s name`}</div>`:""}</button>`}).join("")}</div>`
+    : `<div class="empty-state"><strong>No partner teams yet</strong><span>Create a team for each pair of escorts who work together.</span><button class="btn primary" data-act="newTeam">Add the first team</button></div>`}
+  ${unpaired.length?`<div style="margin-top:16px" class="row"><span class="note">Not partnered:</span>${unpaired.map(e=>`<span class="pill p-flag">${esc(e.name)}</span>`).join("")}</div>`:""}</div></div>`;
+}
+
+/* ---------- ADMIN: report ---------- */
+function rReport(app){
+  const st=S.site;
+  app.innerHTML=`<div class="grid2">
+  <div class="panel"><div class="hd"><h2>SOC report</h2></div><div class="bd" style="display:grid;gap:14px">
+    <p class="note" style="margin:0">Builds a PDF branded for ${esc(st.client||"SGI")} with the roster, arrivals and departures, lodging, rental cars and partner teams for the date range below.</p>
+    <div class="fg">
+      <label class="f">From<input type="date" id="rpFrom" value="${esc(st.periodStart||"")}"></label>
+      <label class="f">To<input type="date" id="rpTo" value="${esc(st.periodEnd||"")}"></label>
+    </div>
+    <div style="display:grid;gap:6px">
+      ${[["sum","Summary"],["wk","On site now & coming next week"],["mov","Arrivals & departures"],["ros","Full roster"],["lod","Lodging (rooms)"],["veh","Rental vehicles"],["tm","Partner teams"]].map(([k,l])=>`<label class="check"><input type="checkbox" id="rp_${k}" checked> ${l}</label>`).join("")}
+    </div>
+    <label class="f">Remarks for SOC (optional)<textarea id="rpNotes" placeholder="Anything SOC should know about this period">${esc(st.reportNotes||"")}</textarea></label>
+    <div class="row"><button class="btn primary" id="rpGo">Export PDF</button><span class="note" id="rpMsg"></span></div>
+  </div></div>
+  <div class="panel"><div class="hd"><h3>Branding on the report</h3></div><div class="bd" style="display:grid;gap:10px">
+    <div class="row">${st.logo?`<img src="${st.logo}" alt="Logo" style="height:44px;background:#fff;padding:4px;border-radius:4px">`:`<span class="note">No logo uploaded. The report uses a text wordmark until you add one in Site settings.</span>`}</div>
+    <dl class="kv"><dt>Company</dt><dd>${esc(st.companyName||"Solutions Group International")}</dd>
+    <dt>Addressed to</dt><dd>${esc(st.client||"SGI")} Security Operations Center</dd>
+    <dt>Site</dt><dd>${esc(st.siteName||"New Jersey")}</dd>
+    <dt>Prepared by</dt><dd>${esc(st.siteLead||"—")}${st.siteLeadTitle?`, ${esc(st.siteLeadTitle)}`:""}</dd>
+    <dt>Brand color</dt><dd><span style="display:inline-block;width:14px;height:14px;border-radius:3px;vertical-align:-2px;background:${esc(st.brandColor||"#4E6B2A")}"></span> <span class="mono">${esc(st.brandColor||"#4E6B2A")}</span></dd></dl>
+    <button class="btn sm" data-tab-go="settings" style="justify-self:start">Edit branding</button>
+  </div></div></div>`;
+  $("#rpGo").onclick=exportPDF;
+}
+
+/* ---------- ADMIN: settings ---------- */
+function rSettings(app){
+  const st=S.site;
+  app.innerHTML=`<div class="panel" style="max-width:760px"><div class="hd"><h2>Site settings</h2></div><div class="bd" style="display:grid;gap:16px">
+  <div class="fieldset-title">Site</div>
+  <div class="fg">
+    <label class="f">Site name<input id="s_siteName" value="${esc(st.siteName||"New Jersey")}"></label>
+    <label class="f">Site lead<input id="s_siteLead" value="${esc(st.siteLead||"")}"></label>
+    <label class="f">Site lead title<input id="s_siteLeadTitle" value="${esc(st.siteLeadTitle||"Site Lead")}"></label>
+    <label class="f">Period start<input type="date" id="s_periodStart" value="${esc(st.periodStart||"")}"></label>
+    <label class="f">Period end<input type="date" id="s_periodEnd" value="${esc(st.periodEnd||"")}"></label>
+    <label class="f">Room service every (days)<input type="number" min="0" id="s_serviceEvery" value="${esc(st.serviceEvery??7)}"></label>
+    <label class="f">SOC week starts on<select id="s_weekStart">${DAYS.map((d,i)=>opt(String(i),["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][i],String(st.weekStart??0)===String(i))).join("")}</select></label>
+  </div>
+  <label class="f">Personal link address (leave blank to use this page's address)<input id="s_linkBase" placeholder="${esc(location.origin+location.pathname)}" value="${esc(st.linkBase||"")}"></label>
+  <div class="fieldset-title">Report branding</div>
+  <div class="fg">
+    <label class="f">Company name<input id="s_companyName" value="${esc(st.companyName||"Solutions Group International")}"></label>
+    <label class="f">Short name<input id="s_client" value="${esc(st.client||"SGI")}"></label>
+    <label class="f">Brand color<input type="color" id="s_brandColor" value="${esc(st.brandColor||"#4E6B2A")}" style="height:38px;padding:3px"></label>
+  </div>
+  <label class="f">Logo (PNG or JPG)<input type="file" id="s_logo" accept="image/png,image/jpeg"></label>
+  <div class="row">${st.logo?`<img src="${st.logo}" alt="Current logo" style="height:40px;background:#fff;padding:4px;border-radius:4px"><button class="btn sm danger" id="s_logoClear">Remove logo</button>`:`<span class="note">No logo yet.</span>`}</div>
+  <div class="row"><button class="btn primary" id="s_save">Save settings</button><div class="spacer"></div><button class="btn" id="s_signout">Sign out</button></div>
+  </div></div>`;
+  $("#s_save").onclick=async()=>{
+    const f=k=>$("#s_"+k).value.trim();
+    await patchSite({siteName:f("siteName"),siteLead:f("siteLead"),siteLeadTitle:f("siteLeadTitle"),periodStart:f("periodStart"),periodEnd:f("periodEnd"),linkBase:(f("linkBase")&&!/^https?:\/\//.test(f("linkBase"))?"https://":"")+f("linkBase"),companyName:f("companyName"),client:f("client"),brandColor:$("#s_brandColor").value,weekStart:+$("#s_weekStart").value,serviceEvery:+($("#s_serviceEvery").value||0)});
+  };
+  $("#s_signout").onclick=async()=>{ await window.__sb.auth.signOut(); location.hash=""; location.reload(); };
+  $("#s_logo").onchange=async ev=>{ const file=ev.target.files[0]; if(!file) return; const url=await shrink(file); if(url) patchSite({logo:url}); };
+  const clr=$("#s_logoClear"); if(clr) clr.onclick=()=>patchSite({logo:""});
+}
+async function patchSite(data){ dirty=false; try{ await db.doc("config/site").set({...S.site,...data}); toast("Settings saved"); }catch(e){ toast("Save failed: "+(e.message||e.code)); } }
+function shrink(file){ return new Promise(res=>{ const r=new FileReader(); r.onload=()=>{ const img=new Image(); img.onload=()=>{ const sc=Math.min(1,480/img.width,160/img.height); const c=document.createElement("canvas"); c.width=Math.round(img.width*sc); c.height=Math.round(img.height*sc); c.getContext("2d").drawImage(img,0,0,c.width,c.height); res(c.toDataURL("image/png")); }; img.onerror=()=>{toast("That image could not be read");res(null)}; img.src=r.result; }; r.readAsDataURL(file); }); }
+
+/* ---------- modals ---------- */
+function modal(title, body, onSave, onDelete){
+  const root=$("#modalRoot");
+  root.innerHTML=`<div class="overlay"><div class="sheet" role="dialog" aria-label="${esc(title)}"><div class="hd"><h2 style="font-size:21px">${esc(title)}</h2><div class="spacer"></div><button class="btn sm" data-close>Close</button></div>
+  <form class="bd" id="mForm">${body}</form><div class="ft">${onDelete?`<button class="btn danger" id="mDel">Remove</button>`:""}<div class="spacer"></div><button class="btn" data-close>Cancel</button><button class="btn primary" id="mSave">Save</button></div></div></div>`;
+  const close=()=>root.innerHTML="";
+  root.querySelectorAll("[data-close]").forEach(b=>b.onclick=close);
+  $(".overlay",root).onclick=e=>{ if(e.target.classList.contains("overlay")) close(); };
+  $("#mForm").onsubmit=e=>{e.preventDefault(); $("#mSave").click();};
+  $("#mSave").onclick=async()=>{ const ok=await onSave(); if(ok!==false) close(); };
+  if(onDelete){ let armed=false; $("#mDel").onclick=async()=>{ if(!armed){armed=true;$("#mDel").textContent="Click again to remove";return} await onDelete(); close(); }; }
+  const first=$("input,select",root); first&&first.focus();
+}
+const v = id => ($("#"+id)?.value ?? "").trim();
+const opt = (val, label, sel, dis) => `<option value="${esc(val)}" ${sel?"selected":""} ${dis?"disabled":""}>${esc(label)}</option>`;
+
+function editEscort(id){
+  const e=id? {id,...S.escorts[id]} : {id:uid("e")}; const raw=id? (R.escorts[id]||{}) : {};
+  const rooms=list("rooms").sort((a,b)=>roomLabel(a).localeCompare(roomLabel(b),undefined,{numeric:true}));
+  const teams=list("teams").sort((a,b)=>(a.name||"").localeCompare(b.name||"",undefined,{numeric:true}));
+  const cars=list("cars"); const myCar=cars.find(c=>c.assignedTo===e.id);
+  const roomOpts=opt("","No room",!e.roomId)+rooms.map(r=>{const occ=roomOcc(r.id).filter(x=>x.id!==e.id);return opt(r.id,`${roomLabel(r)} (${occ.length}/2${occ.length?": "+occ.map(x=>x.name).join(", "):""})`,e.roomId===r.id,occ.length>=2)}).join("");
+  const teamOpts=opt("","No partner team",!e.teamId)+teams.map(t=>{const m=teamMembers(t.id).filter(x=>x.id!==e.id);return opt(t.id,`${teamLabel(t)} (${m.length?"with "+m.map(x=>x.name).join(", "):"open"})`,e.teamId===t.id,m.length>=2)}).join("");
+  const carOpts=opt("","No car",!myCar)+cars.map(c=>{const o=c.assignedTo&&c.assignedTo!==e.id?S.escorts[c.assignedTo]?.name:"";return opt(c.id,`${c.vehicle||"Car"}${o?" (now: "+o+")":""}`,myCar?.id===c.id)}).join("");
+  modal(id?"Edit escort":"Add escort", `
+    <datalist id="poolNames">${poolList().filter(p=>p.name).map(p=>`<option value="${esc(p.name)}">${esc(fmtPhone(p.phone))}</option>`).join("")}</datalist>
+    <div class="fg"><label class="f">Full name<input id="m_name" required list="poolNames" autocomplete="off" value="${esc(e.name||"")}"></label>
+    <label class="f">Phone<input id="m_phone" inputmode="tel" placeholder="555-555-5555" value="${esc(fmtPhone(e.phone))}"></label>
+    <label class="f">Status<select id="m_state">${opt("","Automatic (from times)",!e.state)}${opt("arrived","Confirmed on site",e.state==="arrived")}${opt("departed","Departed",e.state==="departed")}${opt("cancelled","Cancelled",e.state==="cancelled")}</select></label></div>
+    <div class="fieldset-title">Arrival</div>
+    <div class="fg"><label class="f">Date & time<input type="datetime-local" id="m_arriveAt" value="${esc(e.arriveAt||"")}"></label></div>
+    <div class="fieldset-title">Departure</div>
+    ${e.departBy==="escort"?`<p class="note" style="margin:0"><span class="pill p-self">Self-reported</span> ${esc(e.name)} entered this on ${fISO(e.departReportedAt)}${e.escortNote?` — “${esc(e.escortNote)}”`:""}. Changing it here overrides theirs until they submit again.</p>`:""}
+    <div class="fg"><label class="f">Planned departure<input type="datetime-local" id="m_departAt" value="${esc(e.departAt||"")}"></label></div>
+    <div class="fieldset-title">Assignments</div>
+    <div class="fg"><label class="f">Hotel room<select id="m_roomId">${roomOpts}</select></label>
+    <label class="f">Partner team<select id="m_teamId">${teamOpts}</select></label>
+    <div class="f" style="display:grid;gap:4px"><span style="font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)">Rental car in their name</span>
+      <div class="row"><label class="check"><input type="radio" name="m_rent" value="yes" ${hasRental(e)?"checked":""}> Yes</label><label class="check"><input type="radio" name="m_rent" value="no" ${e.carInName&&e.carInName.has===false&&!carsFor(e).length?"checked":""}> No</label></div></div></div>
+    ${rooms.length&&teams.length&&cars.length?"":`<p class="note" style="margin:0">Add rooms, teams and cars on their tabs to assign them here.</p>`}
+    <label class="f">Notes<textarea id="m_notes">${esc(e.notes||"")}</textarea></label>
+    ${id?`<div class="row"><span class="note">Personal link: <span class="mono">${esc(linkFor(id))}</span></span><button type="button" class="btn sm" id="m_newlink">New link</button></div>`:""}`,
+  async()=>{
+    if(!v("m_name")){ toast("Enter the escort's name"); return false; }
+    if(!v("m_phone")){ const hit=poolList().find(p=>(p.name||"").toLowerCase()===v("m_name").toLowerCase()); if(hit?.phone) $("#m_phone").value=fmtPhone(hit.phone); }
+    if(v("m_arriveAt")&&v("m_departAt")&&v("m_departAt")<v("m_arriveAt")){ toast("Departure is before arrival"); return false; }
+    const rent=document.querySelector('input[name="m_rent"]:checked')?.value||"";
+    const now=new Date().toISOString();
+    await save("escorts", e.id, {...raw, departSetAt: v("m_departAt")!==(e.departAt||"") ? now : (raw.departSetAt||""), arriveTbd: !!raw.arriveTbd && v("m_arriveAt")===(e.arriveAt||""), name:v("m_name"),phone:v("m_phone"),state:v("m_state"),arriveAt:v("m_arriveAt"),departAt:v("m_departAt"),roomId:v("m_roomId"),teamId:v("m_teamId"),notes:v("m_notes")});
+    if(isAdmin){ const d=digits(v("m_phone")), n=v("m_name"); const hit=d.length===10 ? poolList().find(p=>digits(p.phone)===d) : poolList().find(p=>(p.name||"").toLowerCase()===n.toLowerCase());
+      try{ if(!hit) await db.collection("pool").doc(d.length===10?"p"+d:uid("p")).set({name:n, phone:fmtPhone(v("m_phone")), groups:["Added on board"], armed:false, notes:""});
+           else if(!hit.name && n) await db.collection("pool").doc(hit.id).set({...S.pool[hit.id], name:n}); }catch(err){} }
+    if(rent) await setRental(e.id, rent==="yes", true);
+  },
+  id? async()=>{ for(const c of carsFor(e)) await patch("cars",c.id,{assignedTo:""}); await remove("escorts",id); } : null);
+  const nl=$("#m_newlink"); if(nl) nl.onclick=async()=>{ await patch("escorts", id, {token:newToken()}); $("#modalRoot").innerHTML=""; toast("New link created. The old one no longer works."); };
+  const nm=$("#m_name"), ph=$("#m_phone"); let autoPh=!ph.value, autoNm=!nm.value;
+  const hint=document.createElement("span"); hint.className="note"; hint.id="m_hint"; ph.parentElement.appendChild(hint);
+  const flash=el=>{ el.classList.add("filled"); setTimeout(()=>el.classList.remove("filled"),900); };
+  const fillFromName=()=>{ autoNm=!nm.value; const q=nm.value.trim().toLowerCase(); if(!q) return; const hit=poolList().find(p=>(p.name||"").trim().toLowerCase()===q);
+    if(hit?.phone && (autoPh||!ph.value)){ ph.value=fmtPhone(hit.phone); autoPh=true; flash(ph); hint.textContent="From staffing pool"; } };
+  const fillFromPhone=()=>{ autoPh=!ph.value; const d=digits(ph.value); hint.textContent="";
+    if(d.length<10) return;
+    const onRoster=Object.entries(R.escorts).find(([oid,x])=>oid!==e.id && digits(x.phone)===d);
+    if(onRoster){ hint.textContent=`Already on the roster as ${onRoster[1].name}`; return; }
+    const hit=poolList().find(p=>digits(p.phone)===d);
+    if(hit){ if(hit.name && (autoNm||!nm.value)){ nm.value=hit.name; autoNm=true; flash(nm); } hint.textContent=hit.name?`Matched ${hit.name} in staffing pool`:"In staffing pool, no name saved"; }
+    else hint.textContent="New number — will be saved to the staffing pool"; };
+  nm.addEventListener("input", fillFromName); nm.addEventListener("change", fillFromName);
+  ph.addEventListener("input", fillFromPhone);
+}
+function editRoom(id){
+  const r=id? {id,...S.rooms[id]} : {id:uid("r"), hotel: list("rooms")[0]?.hotel||""};
+  const occ=id? roomBeds(id):[null,null];
+  const pool=escorts().filter(e=>status(e).k!=="can");
+  const slotSel=(i)=>`<select id="m_occ${i}">${opt("","Open bed",!occ[i])}${pool.map(e=>{const busy=e.roomId&&e.roomId!==r.id;return opt(e.id,e.name+(busy?` (in ${roomLabel(S.rooms[e.roomId])})`:""),occ[i]?.id===e.id)}).join("")}</select>`;
+  modal(id?"Edit room":"Add room", `
+    <div class="fg"><label class="f">Hotel<input id="m_hotel" value="${esc(r.hotel||"")}" placeholder="e.g. Courtyard Newark Airport"></label>
+    <label class="f">Room #<input id="m_number" value="${esc(r.number||"")}"></label>
+    <label class="f">Check-in<input type="date" id="m_ci" value="${esc(r.checkIn||"")}"></label></div>
+    <p class="note" style="margin:0">Check-out follows the escorts' departure dates.</p>
+    <div class="fieldset-title">Escorts assigned (2 per room)</div>
+    <div class="fg"><label class="f">Escort 1${slotSel(0)}</label><label class="f">Escort 2${slotSel(1)}</label></div>
+    <label class="f">Notes<textarea id="m_notes">${esc(r.notes||"")}</textarea></label>`,
+  async()=>{
+    if(!v("m_hotel")||!v("m_number")){ toast("Enter the hotel and room number"); return false; }
+    const a=v("m_occ0"), b=v("m_occ1"); if(a&&a===b){ toast("Pick two different escorts"); return false; }
+    await save("rooms", r.id, {...(S.rooms[r.id]||{}), hotel:v("m_hotel"),number:v("m_number"),checkIn:v("m_ci"),notes:v("m_notes")});
+    for(const o of occ) if(o && o.id!==a&&o.id!==b) await patch("escorts",o.id,{roomId:"",bed:null});
+    for(const [i,x] of [a,b].entries()) if(x && (S.escorts[x]?.roomId!==r.id || S.escorts[x]?.bed!==i+1)) await patch("escorts",x,{roomId:r.id,bed:i+1});
+  },
+  id? async()=>{ for(const o of occ) if(o) await patch("escorts",o.id,{roomId:"",bed:null}); await remove("rooms",id); } : null);
+}
+function editCar(id){
+  const c=id? {id,...S.cars[id]} : {id:uid("c")};
+  modal(id?"Edit rental car":"Add rental car", `
+    <div class="fg"><label class="f">Vehicle<input id="m_vehicle" value="${esc(c.vehicle||"")}" placeholder="e.g. 2025 Chevy Tahoe"></label>
+    <label class="f">Color<input id="m_color" value="${esc(c.color||"")}"></label>
+    <label class="f">Agency<input id="m_agency" value="${esc(c.agency||"")}" placeholder="e.g. Enterprise EWR"></label>
+    <label class="f">Rented in name of<select id="m_assignedTo">${opt("","Unassigned",!c.assignedTo)}${escorts().filter(e=>status(e).k!=="can").map(e=>opt(e.id,e.name,c.assignedTo===e.id)).join("")}</select></label>
+    <label class="f">Pick-up<input type="datetime-local" id="m_pickupAt" value="${esc(c.pickupAt||"")}"></label>
+    <label class="f">Return<input type="datetime-local" id="m_returnAt" value="${esc(c.returnAt||"")}"></label></div>
+    <label class="f">Notes<textarea id="m_notes">${esc(c.notes||"")}</textarea></label>`,
+  async()=>{
+    if(!v("m_vehicle")&&!v("m_assignedTo")){ toast("Enter the vehicle or whose name it's in"); return false; }
+    await save("cars", c.id, {vehicle:v("m_vehicle"),color:v("m_color"),agency:v("m_agency"),assignedTo:v("m_assignedTo"),pickupAt:v("m_pickupAt"),returnAt:v("m_returnAt"),notes:v("m_notes")});
+  }, id? ()=>remove("cars",id) : null);
+}
+function editTeam(id){
+  const nums=list("teams").map(x=>parseInt(String(x.name).replace(/\D/g,""))||0); const t=id? {id,...S.teams[id]} : {id:uid("t"), name:String((nums.length?Math.max(...nums):0)+1)};
+  const m=id? teamMembers(id):[];
+  const pool=escorts().filter(e=>status(e).k!=="can");
+  const sel=i=>`<select id="m_mem${i}">${opt("","Open slot",!m[i])}${pool.map(e=>{const busy=e.teamId&&e.teamId!==t.id;return opt(e.id,e.name+(busy?` (in ${teamLabel(S.teams[e.teamId])})`:""),m[i]?.id===e.id)}).join("")}</select>`;
+  modal(id?"Edit partner team":"Add partner team", `
+    <div class="fg"><label class="f">Team number<input id="m_tname" inputmode="numeric" value="${esc(String(t.name||"").replace(/^Team\s*/i,""))}"></label></div>
+    <div class="fieldset-title">Team members</div>
+    <div class="fg">${[0,1].map(i=>`<div style="display:grid;gap:6px"><label class="f">Member ${i+1}${sel(i)}</label><label class="check"><input type="checkbox" id="m_rent${i}" ${m[i]&&hasRental(m[i])?"checked":""}> Rental car in this member's name</label></div>`).join("")}</div>
+    <p class="note" style="margin:0">Tick both when each member has their own rental.</p>`,
+  async()=>{
+    const a=v("m_mem0"), b=v("m_mem1"); if(a&&a===b){ toast("Pick two different escorts"); return false; }
+    if(!v("m_tname")){ toast("Enter the team number"); return false; }
+    await save("teams", t.id, {name:v("m_tname").replace(/^Team\s*/i,"")});
+    for(const o of m) if(o.id!==a&&o.id!==b) await patch("escorts",o.id,{teamId:""});
+    for(const x of [a,b]) if(x && S.escorts[x]?.teamId!==t.id) await patch("escorts",x,{teamId:t.id});
+    for(const [i,x] of [a,b].entries()){ if(!x) continue; const want=$("#m_rent"+i).checked; if(want!==hasRental({id:x,...S.escorts[x]})) await setRental(x, want, true); }
+  },
+  id? async()=>{ for(const o of m) await patch("escorts",o.id,{teamId:""}); await remove("teams",id); } : null);
+}
+
+/* ---------- ESCORT VIEW ---------- */
+function renderEscortView(app){
+  const es=escorts().filter(e=>status(e).k!=="can");
+  const mine = myUid ? S.checkins[myUid] : null;
+  const pick = ESCORT_ID || ls.get("njsb_me") || "";
+  const e = S.escorts[pick] ? {id:pick,...S.escorts[pick]} : null;
+  if(!e){
+    app.innerHTML=`<div class="me"><div class="me-hero"><h2>Find your assignment</h2><p class="muted" style="margin:0">Tap your name to see your dates, hotel room, partner and rental cars.</p></div>
+    <div class="panel"><div class="bd picker">${es.length? es.sort((a,b)=>(a.name||"").localeCompare(b.name||"")).map(x=>`<button class="btn" data-pick="${x.id}">${esc(x.name)}</button>`).join("") : `<div class="empty-state"><strong>The roster is empty</strong><span>Your site lead hasn't added anyone yet. Check back soon.</span></div>`}</div></div></div>`;
+    return;
+  }
+  const room=S.rooms[e.roomId], mates=roommateOf(e), team=S.teams[e.teamId], partners=partnerOf(e);
+  const myCars=carsFor(e), partnerCars=partners.flatMap(p=>carsFor(p));
+  const teamCars=[...myCars.map(c=>({...c,mine:true})), ...partners.flatMap(p=>carsFor(p).map(c=>({...c,mine:false})))];
+  const partnerReported=partners.filter(p=>carIn(p)&&!carsFor(p).length);
+  app.innerHTML=`<div class="me">
+    <div class="me-hero"><div class="row"><span class="badge-sub">${esc(S.site.siteName||"New Jersey")} site</span><div class="spacer"></div>${pill(e)}</div>
+      <div class="nm">${esc(e.name)}</div>${e.phone?`<div class="mono muted">${esc(e.phone)}</div>`:""}
+      ${(ESCORT_ID || mine?.escortId===e.id) ? "" : `<div class="row" style="margin-top:6px"><button class="btn sm primary" id="me_claim">Yes, this is me</button><span class="note">Confirms to your site lead that you've received your assignment.</span></div>`}</div>
+    <div class="panel"><div class="hd"><h3>Dates</h3></div><div class="bd"><dl class="kv">
+      <dt>Arrive</dt><dd><div class="big-t">${arrT(e)}</div></dd>
+      <dt>Depart</dt><dd><div class="big-t">${fDT(e.departAt)}</div><div class="note">${e.departBy==="escort"?"Entered by you":""}${stayT(e)?(e.departBy==="escort"?" · ":"")+stayT(e):""}</div></dd>
+    </dl></div></div>
+    <div class="panel"><div class="hd"><h3>Your departure plans</h3></div><div class="bd" style="display:grid;gap:12px">
+      <p class="note" style="margin:0">Answer both. Your site lead sees them right away. Update any time your plans change.</p>
+      <div class="fieldset-title" style="font-size:13px">1 · When do you plan to leave?</div>
+      <div class="fg"><label class="f">Planned departure<input type="datetime-local" id="me_dep" value="${esc((mine?.escortId===e.id&&mine.departAt)||e.departAt||"")}"></label></div>
+      <div class="fieldset-title" style="font-size:13px">2 · If needed, how long can you stay?</div>
+      <div class="fg"><label class="f">I can stay until<input type="date" id="me_stay" value="${esc((mine?.escortId===e.id&&mine.stayUntil)||"")}"></label>
+      <label class="check" style="align-self:end"><input type="checkbox" id="me_nostay" ${mine?.escortId===e.id&&mine.stayUntil==="none"?"checked":""}> I can't extend past my planned date</label></div>
+      <label class="f">Note to site lead (optional)<textarea id="me_note">${esc(mine?.escortId===e.id?mine.note||"":"")}</textarea></label>
+      <div class="row"><button class="btn primary" id="me_save">Submit departure plans</button><span class="note" id="me_msg">${mine?.escortId===e.id&&mine.reportedAt?"Last submitted "+fISO(mine.reportedAt):""}</span></div>
+    </div></div>
+    <div class="panel"><div class="hd"><h3>Hotel</h3></div><div class="bd">${room?`<dl class="kv">
+      <dt>Hotel</dt><dd><b>${esc(room.hotel||"—")}</b></dd><dt>Room</dt><dd class="big-t">${esc(room.number||"—")}</dd>
+      <dt>Roommate</dt><dd>${esc(mates.map(m=>m.name).join(", ")||"Open bed — no roommate yet")}${mates[0]?.phone?`<div class="note mono">${esc(mates[0].phone)}</div>`:""}</dd>
+      <dt>Stay</dt><dd class="mono">${fD(room.checkIn)} → ${coT(room)}</dd>
+      <dt>Next service</dt><dd>${svcPill(room)}${room.serviceNotes?`<div class="note">${esc(room.serviceNotes)}</div>`:""}</dd>
+      ${room.notes?`<dt>Notes</dt><dd>${esc(room.notes)}</dd>`:""}</dl>`:`<p class="muted" style="margin:0">No room assigned yet. Your site lead will post it here.</p>`}</div></div>
+    ${room?`<div class="panel"><div class="hd"><h3>Request room service</h3></div><div class="bd" style="display:grid;gap:12px">
+      ${(()=>{const r=mine?.escortId===e.id&&mine.svc&&!mine.svc.doneAt?mine.svc:null; return r?`<div class="row"><span class="pill p-depart">${esc(r.type)}</span><span>Requested ${fISO(r.at)}${r.note?` — “${esc(r.note)}”`:""}. Send a new one below to change it.</span></div>`:(mine?.svc?.doneAt?`<p class="note" style="margin:0">Last request (${esc(mine.svc.type)}) was completed ${fISO(mine.svc.doneAt)}.</p>`:"");})()}
+      <p class="note" style="margin:0">Pick what the front desk should service. Your site lead gets it in the 0500 morning report.</p>
+      <div class="fg" role="radiogroup" aria-label="Service type">${SVC_TYPES.map((t,i)=>`<label class="check" style="border:1px solid var(--line);border-radius:6px;padding:10px"><input type="radio" name="svc_type" value="${esc(t)}" ${i===0?"":""}> ${esc(t)}</label>`).join("")}</div>
+      <label class="f">Note (optional)<input id="svc_note" placeholder="e.g. Day sleeper, after 1300 please"></label>
+      <div class="row"><button class="btn primary" id="svc_send">Send request</button><span class="note" id="svc_msg"></span></div>
+    </div></div>`:""}
+    <div class="panel"><div class="hd"><h3>Partner</h3></div><div class="bd">${team?`<dl class="kv">
+      <dt>Team</dt><dd><b>${esc(teamLabel(team))}</b></dd>
+      <dt>Partner</dt><dd>${partners.length? partners.map(p=>`${esc(p.name)}${p.phone?` <span class="mono muted">${esc(p.phone)}</span>`:""}`).join("<br>") : "Open slot — partner not assigned yet"}</dd>
+</dl>`:`<p class="muted" style="margin:0">No partner assigned yet.</p>`}</div></div>
+    <div class="panel"><div class="hd"><h3>Rental car in your name</h3></div><div class="bd" style="display:grid;gap:12px">
+      <p class="note" style="margin:0">Is there a rental car rented in your name for this assignment?</p>
+      <div class="row" role="radiogroup" aria-label="Rental car in your name">
+        <label class="check" style="border:1px solid var(--line);border-radius:6px;padding:8px 12px"><input type="radio" name="car_has" value="yes" ${carIn(e)?"checked":""}> Yes</label>
+        <label class="check" style="border:1px solid var(--line);border-radius:6px;padding:8px 12px"><input type="radio" name="car_has" value="no" ${e.carInName&&e.carInName.has===false?"checked":""}> No</label></div>
+      <div class="row"><button class="btn primary" id="car_save">Save</button><span class="note" id="car_msg">${e.carInName?.at?"Last saved "+fISO(e.carInName.at):""}</span></div>
+    </div></div>
+    <div class="panel"><div class="hd"><h3>Team rental cars</h3>${teamCars.length+partnerReported.length>1?'<span class="pill p-grp">2 cars</span>':""}</div><div class="bd" style="display:grid;gap:14px">${teamCars.length||partnerReported.length? [...teamCars.map(car=>`<dl class="kv">
+      <dt>In name of</dt><dd><b>${car.mine?"You":esc(name(car.assignedTo))}</b></dd>
+      ${car.vehicle?`<dt>Vehicle</dt><dd>${esc(car.vehicle)}${car.color?` · ${esc(car.color)}`:""}</dd>`:""}
+      ${car.agency?`<dt>Agency</dt><dd>${esc(car.agency)}</dd>`:""}
+      ${car.returnAt?`<dt>Return</dt><dd class="mono">${fDT(car.returnAt)}</dd>`:""}</dl>`), ...partnerReported.map(p=>`<dl class="kv"><dt>In name of</dt><dd><b>${esc(p.name)}</b></dd>${carIn(p).vehicle?`<dt>Vehicle</dt><dd>${esc(carIn(p).vehicle)}</dd>`:""}</dl>`)].join('<hr style="border:0;border-top:1px solid var(--line);margin:0">') :`<p class="muted" style="margin:0">No rental car in your or your partner's name.</p>`}</div></div>
+    ${e.notes?`<div class="panel"><div class="hd"><h3>Notes from site lead</h3></div><div class="bd">${esc(e.notes)}</div></div>`:""}
+    ${mine?.escortId===e.id && chatAllowed() ? chatPanelHTML() : `<div class="panel"><div class="hd"><h3>Team chat</h3></div><div class="bd"><p class="muted" style="margin:0">${mine?.escortId===e.id ? "The team chat opens once you're checked in as on site." : "Tap “Yes, this is me” above to unlock the team chat once you're on site."}</p></div></div>`}
+    ${status(e).k==="on"?`<div class="panel"><div class="hd"><h3>Who's in what room</h3></div><div class="bd" style="display:grid;gap:10px"><input id="dirQ" type="search" placeholder="Type a name or room number" aria-label="Search rooms"><div id="dirOut">${dirHTML("")}</div></div></div>`:""}
+    ${ESCORT_ID?"":`<button class="btn" data-pick="" style="justify-self:center">Preview another escort</button>`}
+  </div>`;
+  bindChat(); bindDir();
+  const claim = async (extra) => {
+    if(!ESCORT_ID){ toast("Preview only. Nothing was saved."); return false; }
+    try{ await db.collection("checkins").doc(ESCORT_ID).set(extra||{}); return true; }
+    catch(err){ const m="Couldn't send. Check your signal and try again."; const box=$("#me_msg"); if(box) box.textContent=m; toast(m); return false; }
+  };
+  const ns=$("#me_nostay"), sd=$("#me_stay"); if(ns&&sd){ const sync=()=>{ sd.disabled=ns.checked; if(ns.checked) sd.value=""; }; ns.onchange=sync; sync(); }
+  const cb=$("#me_claim"); if(cb) cb.onclick=async()=>{ if(await claim({})) toast("Confirmed"); };
+  const cs=$("#car_save"); if(cs) cs.onclick=async()=>{ const h=document.querySelector('input[name="car_has"]:checked')?.value; if(!h){ $("#car_msg").textContent="Choose Yes or No."; return; }
+    if(await claim({carInName:{has:h==="yes", at:new Date().toISOString()}})){ dirty=false; toast("Saved"); } };
+  const ss=$("#svc_send"); if(ss) ss.onclick=async()=>{ const t=document.querySelector('input[name="svc_type"]:checked')?.value; if(!t){ $("#svc_msg").textContent="Choose Window bed, Bathroom bed, Whole room or Towels only."; return; }
+    if(await claim({svc:{type:t, note:v("svc_note"), at:new Date().toISOString(), roomId:e.roomId||""}})){ dirty=false; toast("Service request sent"); } };
+  $("#me_save").onclick=async()=>{
+    const dep=v("me_dep"); if(!dep){ $("#me_msg").textContent="Pick the date and time you expect to leave."; return; }
+    if(e.arriveAt && dep<e.arriveAt){ $("#me_msg").textContent="That's before your arrival. Check the date."; return; }
+    const nostay=$("#me_nostay").checked, stay=v("me_stay");
+    if(!nostay && !stay){ $("#me_msg").textContent="Answer question 2: pick the latest date you could stay, or tick that you can't extend."; return; }
+    if(!nostay && stay < dep.slice(0,10)){ $("#me_msg").textContent="The stay-until date is before your planned departure."; return; }
+    if(await claim({departAt:dep,note:v("me_note"),stayUntil:nostay?"none":stay,reportedAt:new Date().toISOString()})){ dirty=false; toast("Departure plans submitted"); }
+  };
+}
+
+/* ---------- PDF ---------- */
+function hexRGB(h){ h=(h||"#4E6B2A").replace("#",""); return [0,2,4].map(i=>parseInt(h.slice(i,i+2),16)||0); }
+async function exportPDF(){
+  const msg=$("#rpMsg");
+  if(!window.jspdf){ msg.textContent="The PDF library didn't load. Reload the page and try again."; return; }
+  const st=S.site, from=v("rpFrom"), to=v("rpTo"), notes=v("rpNotes");
+  if(notes!==(st.reportNotes||"")) patchSite({reportNotes:notes}).catch(()=>{});
+  const inRange=s=>{ if(!s) return false; const k=dayKey(s); return (!from||k>=from)&&(!to||k<=to); };
+  const overlaps=e=>{ const a=dayKey(e.arriveAt)||"0000", d=dayKey(e.departAt)||"9999"; return (!to||a<=to)&&(!from||d>=from); };
+  const all=escorts().filter(e=>status(e).k!=="can"), ros=all.filter(overlaps);
+  const brand=hexRGB(st.brandColor), company=st.companyName||"Solutions Group International", short=st.client||"SGI";
+  const {jsPDF}=window.jspdf; const doc=new jsPDF({orientation:"landscape",unit:"pt",format:"letter"});
+  const W=doc.internal.pageSize.getWidth(), H=doc.internal.pageSize.getHeight(), M=36;
+  const range=`${from?fD(from):"Start"} – ${to?fD(to):"Present"}`;
+  const genAt=new Date(); const genStr=`${fDay(genAt.toISOString())} ${genAt.getFullYear()} · ${p2(genAt.getHours())}${p2(genAt.getMinutes())} local`;
+  const header=()=>{
+    doc.setFillColor(...brand); doc.rect(0,0,W,58,"F");
+    let x=M;
+    if(st.logo){ try{ const p=doc.getImageProperties(st.logo); const h=34, w=Math.min(140,p.width*h/p.height); doc.setFillColor(255,255,255); doc.roundedRect(M-4,12,w+8,h,3,3,"F"); doc.addImage(st.logo,"PNG",M,12,w,h); x=M+w+16; }catch(e){} }
+    else { doc.setTextColor(255,255,255); doc.setFont("helvetica","bold"); doc.setFontSize(24); doc.text(short,M,38); x=M+doc.getTextWidth(short)+14; doc.setDrawColor(255,255,255); doc.setLineWidth(.8); doc.line(x-7,18,x-7,42); }
+    doc.setTextColor(255,255,255); doc.setFont("helvetica","bold"); doc.setFontSize(11); doc.text(company.toUpperCase(),x,27);
+    doc.setFont("helvetica","normal"); doc.setFontSize(9); doc.text("Security Operations Center · Site Personnel & Logistics Report",x,41);
+    doc.setFontSize(9); doc.text(`${(st.siteName||"New Jersey").toUpperCase()} SITE`,W-M,27,{align:"right"}); doc.text(range,W-M,41,{align:"right"});
+    doc.setTextColor(20,32,46);
+  };
+  const tableBase={margin:{top:76,left:M,right:M,bottom:44},styles:{fontSize:8.5,cellPadding:4,textColor:[20,32,46],lineColor:[203,211,220],lineWidth:.5},headStyles:{fillColor:brand,textColor:255,fontStyle:"bold",fontSize:8},alternateRowStyles:{fillColor:[244,246,249]},theme:"grid",didDrawPage:header};
+  let y=78;
+  const section=(t)=>{ if(y>H-110){doc.addPage();header();y=78;} doc.setFont("helvetica","bold"); doc.setFontSize(12); doc.setTextColor(...brand); doc.text(t.toUpperCase(),M,y); doc.setDrawColor(...brand); doc.setLineWidth(1); doc.line(M,y+4,W-M,y+4); doc.setTextColor(20,32,46); y+=12; };
+  const table=(head,body,opts={})=>{ doc.autoTable({...tableBase,startY:y,head:[head],body:body.length?body:[[{content:"None for this period",colSpan:head.length,styles:{textColor:[110,120,130],fontStyle:"italic"}}]],...opts}); y=doc.lastAutoTable.finalY+22; };
+  header();
+  // prepared block
+  doc.setFont("helvetica","normal"); doc.setFontSize(9); doc.setTextColor(90,104,120);
+  doc.text(`Prepared by: ${st.siteLead||"—"}${st.siteLeadTitle?", "+st.siteLeadTitle:""}   ·   Submitted to: ${short} SOC   ·   Generated: ${genStr}`,M,y); y+=20;
+  if($("#rp_sum").checked){
+    section("Summary");
+    const arr=all.filter(e=>inRange(e.arriveAt)).length, dep=all.filter(e=>inRange(e.departAt)).length;
+    const rooms=list("rooms"), cars=list("cars"), teams=list("teams");
+    table(["Personnel in period","Arrivals","Departures","On site now","Hotel rooms","Beds filled","Rental cars","Partner teams"],
+      [[ros.length,arr,dep,all.filter(e=>status(e).k==="on").length,rooms.length,`${rooms.reduce((n,r)=>n+roomOcc(r.id).length,0)} / ${rooms.length*2}`,cars.length,teams.length]],{styles:{...tableBase.styles,fontSize:10,halign:"center"}});
+    if(notes){ doc.setFont("helvetica","bold"); doc.setFontSize(9); doc.text("Site lead remarks",M,y); y+=12; doc.setFont("helvetica","normal"); const ln=doc.splitTextToSize(notes,W-2*M); doc.text(ln,M,y); y+=ln.length*11+14; }
+  }
+  if($("#rp_wk").checked){
+    const nw=weekRange(1);
+    section("Staffing plan");
+    table(["Week","Needed","Armed needed","Staying all week","Leaving this week","Arriving / booked","Still needed"], [0,1].map(o=>{const w=weekRange(o), p=weekPlan(w); return [`${fD(w.from)} – ${fD(w.to)}`, p.needed??"Not set", p.armedNeeded??"—", p.staying.length, p.leaving.length, p.arriving.length, p.needed==null?"—":p.open>0?p.open:(p.over?`0 (+${p.over} over)`:"0")];}), {styles:{...tableBase.styles,halign:"center"}});
+    section("On site now");
+    table(["Escort","Phone","Arrived","Expected departure","Room","Partner"], all.filter(e=>status(e).k==="on").map(e=>[e.name,e.phone||"—",arrT(e),fDT(e.departAt)+(e.departBy==="escort"?" (self-reported)":""),e.roomId?roomLabel(S.rooms[e.roomId]):"Unassigned",partnerOf(e).map(x=>x.name).join(", ")||"Unassigned"]));
+    section(`Coming next week · ${fD(nw.from)} – ${fD(nw.to)}`);
+    table(["Escort","Phone","Arrives","Room","Partner","Rental car"], all.filter(e=>inWeek(e.arriveAt,nw)).map(e=>{const c=carsFor(e)[0];return [e.name,e.phone||"—",arrT(e),e.roomId?roomLabel(S.rooms[e.roomId]):"To be assigned",partnerOf(e).map(x=>x.name).join(", ")||"To be assigned",c?(c.vehicle||"Yes"):"—"]}));
+  }
+  if($("#rp_mov").checked){
+    section("Arrivals & departures");
+    const mv=[]; all.forEach(e=>{ if(inRange(e.arriveAt)) mv.push([e.arriveAt,"ARRIVE",e]); if(inRange(e.departAt)) mv.push([e.departAt,"DEPART",e]); });
+    mv.sort((a,b)=>a[0].localeCompare(b[0]));
+    table(["Date","Time","Movement","Escort","Room","Partner team"], mv.map(([at,d,e])=>[fDay(at),d==="ARRIVE"&&e.arriveTbd?"TBD":fT(at),d,e.name,e.roomId?roomLabel(S.rooms[e.roomId]):"—",(e.teamId?teamLabel(S.teams[e.teamId]):"—")]),
+      {didParseCell:h=>{ if(h.section==="body"&&h.column.index===2){ h.cell.styles.fontStyle="bold"; h.cell.styles.textColor=h.cell.raw==="ARRIVE"?[28,122,85]:[164,80,26]; } }});
+  }
+  if($("#rp_ros").checked){
+    section("Personnel roster");
+    table(["Escort","Phone","Status","Arrives","Departs","If needed, can stay","Room","Roommate","Partner","Rental in name"], ros.map(e=>{const c=carsFor(e)[0];return [e.name,e.phone||"—",status(e).t,arrT(e),fDT(e.departAt)+(e.departBy==="escort"?" (self-reported)":""),!e.stayUntil?"—":e.stayUntil==="none"?"No":fD(e.stayUntil),e.roomId?roomLabel(S.rooms[e.roomId]):"—",roommateOf(e).map(x=>x.name).join(", ")||"—",partnerOf(e).map(x=>x.name).join(", ")||"—",c?(c.vehicle||"Yes"):(carNameT(e)||"—")]}));
+  }
+  if($("#rp_lod").checked){
+    section("Lodging");
+    table(["Hotel","Room","Occupant 1","Occupant 2","Check-in","Check-out","Last serviced","Next service"], list("rooms").sort((a,b)=>roomLabel(a).localeCompare(roomLabel(b),undefined,{numeric:true})).map(r=>{const o=roomOcc(r.id), si=serviceInfo(r);return [r.hotel||"—",r.number||"—",o[0]?.name||"Open",o[1]?.name||"Open",fD(r.checkIn),coT(r),r.lastServiced?fD(r.lastServiced):"—",r.serviceHold?"On hold":si.due?fD(si.due)+(si.k==="over"?" (overdue)":""):"—"]}));
+  }
+  if($("#rp_veh").checked){
+    section("Rental vehicles");
+    table(["Vehicle","Color","Agency","Rented in name of","Partner","Pick-up","Return"], list("cars").map(c=>{const e=S.escorts[c.assignedTo];return [c.vehicle||"—",c.color||"—",c.agency||"—",e?.name||"Unassigned",e?partnerOf({id:c.assignedTo,...e}).map(x=>x.name).join(", ")||"—":"—",fDT(c.pickupAt),fDT(c.returnAt)]}));
+  }
+  if($("#rp_tm").checked){
+    section("Partner teams");
+    table(["Team","Member 1","Member 2","Rental in name of"], list("teams").sort((a,b)=>String(a.name||"").localeCompare(String(b.name||""),undefined,{numeric:true})).map(t=>{const m=teamMembers(t.id);const h=m.filter(hasRental);return [teamLabel(t),m[0]?.name||"Open",m[1]?.name||"Open",h.length?h.map(x=>x.name).join(" & "):"—"]}));
+  }
+  // signature
+  if(y>H-90){doc.addPage();header();y=78;}
+  doc.setDrawColor(150,160,170); doc.setLineWidth(.6); doc.line(M,y+28,M+220,y+28); doc.line(M+260,y+28,M+400,y+28);
+  doc.setFontSize(8); doc.setTextColor(90,104,120); doc.text(`${st.siteLead||"Site Lead"}${st.siteLeadTitle?", "+st.siteLeadTitle:""}`,M,y+40); doc.text("Date",M+260,y+40);
+  // footers
+  const n=doc.getNumberOfPages();
+  for(let i=1;i<=n;i++){ doc.setPage(i); doc.setDrawColor(...brand); doc.setLineWidth(.8); doc.line(M,H-30,W-M,H-30); doc.setFontSize(7.5); doc.setTextColor(90,104,120);
+    doc.text(`${short.toUpperCase()} · CONFIDENTIAL · FOR SECURITY OPERATIONS CENTER USE ONLY`,M,H-18); doc.text(`Page ${i} of ${n}`,W-M,H-18,{align:"right"}); }
+  const fname=`${short}_SOC_${(st.siteName||"NJ").replace(/\W+/g,"")}_Site_Report_${from||"start"}_to_${to||genAt.toISOString().slice(0,10)}.pdf`;
+  const blob=doc.output("blob");
+  const url=URL.createObjectURL(blob); const a=document.createElement("a"); a.href=url; a.download=fname; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),4000);
+  msg.textContent="PDF downloaded: "+fname;
+}
+
+function copyText(text, okMsg, markIds){
+  const mark = () => { for(const id of markIds||[]) if(!R.escorts[id]?.invitedAt) patch("escorts", id, {invitedAt:new Date().toISOString()}); };
+  const fallback = () => modal("Copy invite", `<p class="note" style="margin:0">Select the text below and copy it, then send it to the escort.</p><textarea id="m_copy" style="min-height:220px;font-size:13px" readonly>${esc(text)}</textarea>`, async()=>{ mark(); }, null);
+  try{ navigator.clipboard.writeText(text).then(()=>{ mark(); toast(okMsg); }, fallback); }catch(e){ fallback(); }
+}
+/* ---------- events ---------- */
+document.addEventListener("click", ev=>{
+  const t=ev.target.closest("[data-car-from],[data-serviced],[data-wk-save],[data-wk-edit],[data-wk-open],[data-pool-edit],[data-pool-add],[data-wk],[data-invite],[data-mark-inv],[data-copy-all],[data-act],[data-edit-escort],[data-edit-room],[data-edit-car],[data-edit-team],[data-pick],[data-copy],[data-tab],[data-tab-go]");
+  if(!t) return;
+  if(t.matches("a")) ev.preventDefault();
+  if(t.dataset.tab||t.dataset.tabGo){ tab=t.dataset.tab||t.dataset.tabGo; ls.set("njsb_tab",tab); return render(); }
+  if(viewMode==="admin"){
+    if(t.dataset.serviced) return markServiced(t.dataset.serviced);
+    if(t.dataset.carFrom){ const e=S.escorts[t.dataset.carFrom], c=carIn(e); return save("cars", uid("c"), {vehicle:c.vehicle||"", assignedTo:t.dataset.carFrom, color:"", agency:"", notes:"Reported by escort"}); }
+    if(t.dataset.wkSave){ const f=t.dataset.wkSave, n=$("#wk_need_"+f).value, a=$("#wk_armed_"+f).value; if(n===""){ toast("Enter how many escorts are needed"); return; } dirty=false; return save("weeks", f, {needed:+n, armedNeeded:a===""?"":+a, notes:(S.weeks[f]||{}).notes||"", updatedAt:new Date().toISOString()}); }
+    if(t.dataset.wkEdit) return editWeekNeed(t.dataset.wkEdit);
+    if(t.dataset.wkOpen!==undefined){ weekOff=+t.dataset.wkOpen; tab="week"; return render(); }
+    if(t.dataset.wk){ weekOff = t.dataset.wk==="reset" ? 1 : weekOff+(+t.dataset.wk); return render(); }
+    if(t.dataset.invite){ const e=S.escorts[t.dataset.invite]; return copyText(inviteText({id:t.dataset.invite,...e}), "Invite copied", [t.dataset.invite]); }
+    if(t.dataset.copyAll){ const w=weekRange(weekOff); const es=escorts().filter(e=>status(e).k!=="can"&&inWeek(e.arriveAt,w)); return copyText(es.map(inviteText).join("\n\n———\n\n"), `${es.length} invites copied`, es.filter(e=>!e.invitedAt).map(e=>e.id)); }
+    if(t.dataset.markInv){ patch("escorts", t.dataset.markInv, {invitedAt:new Date().toISOString()}); return toast("Marked invited"); }
+    const a=t.dataset.act;
+    if(a==="newPool") return editPool();
+    if(t.dataset.poolEdit) return editPool(t.dataset.poolEdit);
+    if(t.dataset.poolAdd) return addFromPool(t.dataset.poolAdd);
+    if(a==="newEscort") return editEscort(); if(a==="newRoom") return editRoom(); if(a==="newCar") return editCar(); if(a==="newTeam") return editTeam();
+    if(t.dataset.editEscort) return editEscort(t.dataset.editEscort);
+    if(t.dataset.editRoom) return editRoom(t.dataset.editRoom);
+    if(t.dataset.editCar) return editCar(t.dataset.editCar);
+    if(t.dataset.editTeam) return editTeam(t.dataset.editTeam);
+  }
+  if(t.dataset.copy!==undefined){ const inp=$("#"+t.dataset.copy); const done=()=>toast("Link copied"); try{ navigator.clipboard.writeText(inp.value).then(done,()=>{inp.select();toast("Press Ctrl/Cmd+C to copy")}); }catch(e){ inp.select(); toast("Press Ctrl/Cmd+C to copy"); } return; }
+  if(t.dataset.pick!==undefined){ ls.set("njsb_me",t.dataset.pick); if(location.hash) history.replaceState(null,"",location.pathname+location.search); render(); }
+});
+$("#switchView").onclick=()=>{ viewMode=viewMode==="admin"?"escort":"admin"; render(); };
+window.addEventListener("hashchange",render);
+document.addEventListener("keydown",e=>{ if(e.key==="Escape") $("#modalRoot").innerHTML=""; });
+
+/* ---------- boot (Supabase) ---------- */
+$("#app").addEventListener("input", ()=>{ dirty=true; });
+const busy = () => !!$("#modalRoot").innerHTML || dirty || (viewMode==="admin"&&(tab==="settings"||tab==="report"));
+let raf=0; const sched=()=>{ cancelAnimationFrame(raf); raf=requestAnimationFrame(()=>{ if(!busy()) render(); else renderHeader(); }); };
+const deep = o => JSON.parse(JSON.stringify(o ?? {}));
+function makeSnap(map){ const docs=Object.entries(map).map(([id,data])=>({id, exists:true, data:()=>deep(data)})); return {docs, size:docs.length, empty:!docs.length}; }
+function refErr(code,message){ const e=new Error(message||code); e.code=code; return e; }
+
+/* Admin store: whole table cached, live via Supabase realtime */
+function adminDB(sb){
+  const cache={}, subs=[];
+  const col=c=>(cache[c] ??= {});
+  const emit=c=>subs.filter(s=>s.c===c).forEach(s=>s.fn(s.id? {id:s.id, exists:!!cache[c]?.[s.id], data:()=>deep(cache[c]?.[s.id])} : makeSnap(col(c))));
+  const put=async(c,id,data)=>{ if(c==="escorts" && !data.token) data.token=(col(c)[id]?.token)||newToken(); col(c)[id]=data; emit(c); const {error}=await sb.from("docs").upsert({collection:c,id,data,updated_at:new Date().toISOString()}); if(error) throw refErr("save_failed",error.message); };
+  const docRef=(c,id)=>({ id,
+    get: async()=>({id, exists:!!col(c)[id], data:()=>deep(col(c)[id])}),
+    set: data=>put(c,id,deep(data)),
+    update: async patch=>{ const cur=deep(col(c)[id]); for(const [k,v] of Object.entries(patch)){ if(v&&typeof v==="object"&&v.__delete__) delete cur[k]; else cur[k]=v; } return put(c,id,cur); },
+    delete: async()=>{ delete col(c)[id]; emit(c); const {error}=await sb.from("docs").delete().match({collection:c,id}); if(error) throw refErr("delete_failed",error.message); },
+    onSnapshot:(fn)=>{ subs.push({c,id,fn}); fn({id, exists:!!col(c)[id], data:()=>deep(col(c)[id])}); return ()=>{}; } });
+  const api={
+    collection:c=>({ doc:id=>docRef(c,id||uid("x")), onSnapshot:(fn)=>{ subs.push({c,fn}); fn(makeSnap(col(c))); return ()=>{}; } }),
+    doc:path=>{ const [c,id]=path.split("/"); return docRef(c,id); },
+    async load(){ let from=0; for(;;){ const {data,error}=await sb.from("docs").select("collection,id,data").range(from,from+999); if(error) throw error; data.forEach(r=>col(r.collection)[r.id]=r.data); if(data.length<1000) break; from+=1000; } },
+    live(){ sb.channel("docs").on("postgres_changes",{event:"*",schema:"public",table:"docs"},p=>{ const r=p.new&&p.new.collection?p.new:p.old; if(!r||!r.collection) return; if(p.eventType==="DELETE") delete col(r.collection)[r.id]; else col(r.collection)[r.id]=p.new.data; emit(r.collection); }).subscribe(); },
+    emitAll(){ Object.keys(cache).forEach(emit); }
+  };
+  return api;
+}
+
+/* Escort store: read-only snapshot from escort_view(token); writes go through escort_submit / escort_chat_post */
+function escortDB(sb, token){
+  const cache={}, subs=[];
+  const col=c=>(cache[c] ??= {});
+  const emit=c=>subs.filter(s=>s.c===c).forEach(s=>s.fn(s.id? {id:s.id, exists:!!col(c)[s.id], data:()=>deep(col(c)[s.id])} : makeSnap(col(c))));
+  const denied=()=>Promise.reject(refErr("invalid_argument","not allowed"));
+  const docRef=(c,id)=>({ id,
+    set: async data=>{
+      if(c==="checkins"){ const {error}=await sb.rpc("escort_submit",{p_token:token,p_patch:data}); if(error) throw refErr("save_failed",error.message); await api.refresh(); return; }
+      if(c==="chat"){ const last=(data.msgs||[]).slice(-1)[0]; const {error}=await sb.rpc("escort_chat_post",{p_token:token,p_text:last?.text||""}); if(error) throw refErr("save_failed",error.message); await api.refresh(); return; }
+      return denied(); },
+    update: async patch=> c==="checkins" ? docRef(c,id).set(patch) : denied(),
+    delete: denied,
+    onSnapshot:(fn)=>{ subs.push({c,id,fn}); fn({id, exists:!!col(c)[id], data:()=>deep(col(c)[id])}); return ()=>{}; } });
+  const api={
+    me:null,
+    collection:c=>({ doc:id=>docRef(c,id), onSnapshot:(fn)=>{ subs.push({c,fn}); fn(makeSnap(col(c))); return ()=>{}; } }),
+    doc:path=>{ const [c,id]=path.split("/"); return docRef(c,id); },
+    async refresh(){ const {data,error}=await sb.rpc("escort_view",{p_token:token}); if(error) throw error; if(!data) return false;
+      api.me=data.me; for(const k of ["escorts","rooms","teams","cars","checkins","chat"]) cache[k]=data[k]||{}; cache.config={site:data.site||{}}; cache.weeks={}; cache.pool={};
+      ["escorts","rooms","teams","cars","checkins","chat","config","weeks","pool"].forEach(emit); return true; }
+  };
+  return api;
+}
+
+function wireStore(){
+  for(const k of ["rooms","cars","teams"]) db.collection(k).onSnapshot(snap=>{ S[k]={}; snap.docs.forEach(d=>S[k][d.id]=d.data()); sched(); });
+  db.collection("escorts").onSnapshot(snap=>{ R.escorts={}; snap.docs.forEach(d=>R.escorts[d.id]=d.data()); merge(); sched(); });
+  db.collection("weeks").onSnapshot(snap=>{ S.weeks={}; snap.docs.forEach(d=>S.weeks[d.id]=d.data()); sched(); });
+  if(isAdmin) db.collection("pool").onSnapshot(snap=>{ const own={}, imp={};
+    snap.docs.forEach(d=>{ const x=d.data()||{}; if(Array.isArray(x.people)) x.people.forEach(p=>{ if(p&&p.id) imp[p.id]={...p,source:x.source||p.source}; }); else own[d.id]=x; });
+    S.pool={}; for(const [id,p] of Object.entries({...imp,...own})) if(!p.deleted) S.pool[id]=p; sched(); });
+  db.collection("chat").onSnapshot(snap=>{ S.chat={}; snap.docs.forEach(d=>S.chat[d.id]=d.data()); if($("#chatLog")) updateChatLog(); else renderHeader(); });
+  db.collection("checkins").onSnapshot(snap=>{ S.checkins={}; snap.docs.forEach(d=>S.checkins[d.id]=d.data()); merge(); sched(); });
+  db.doc("config/site").onSnapshot(d=>{ S.site=d.exists? d.data(): {}; sched(); });
+}
+
+function loginScreen(sb, msg){
+  $("#tabs").hidden=true; $("#switchView").hidden=true; $("#modeTag").textContent="Site lead";
+  $("#app").innerHTML=`<div class="me"><div class="me-hero"><h2>Site lead sign-in</h2><p class="muted" style="margin:0">Escorts don't sign in here. They use the personal link their site lead sends them.</p></div>
+  <form class="panel" id="loginForm"><div class="bd" style="display:grid;gap:12px">
+    <label class="f">Email<input id="lg_email" type="email" autocomplete="username" required></label>
+    <label class="f">Password<input id="lg_pass" type="password" autocomplete="current-password" required></label>
+    <div class="row"><button class="btn primary" type="submit">Sign in</button><span class="note" id="lg_msg">${esc(msg||"")}</span></div>
+  </div></form></div>`;
+  $("#loginForm").onsubmit=async ev=>{ ev.preventDefault(); $("#lg_msg").textContent="Signing in…";
+    const {error}=await sb.auth.signInWithPassword({email:v("lg_email"), password:$("#lg_pass").value});
+    if(error){ $("#lg_msg").textContent="That email and password didn't work. Check them and try again."; return; }
+    location.reload(); };
+}
+
+(async()=>{
+  const sv=ls.get("njsb_tab"); if(sv) tab=sv; P.qs=!!ls.get("njsb_qs");
+  const CFG=window.NJSB_CONFIG||{};
+  if(!window.supabase || !CFG.url || !CFG.key){ $("#app").innerHTML=`<div class="panel"><div class="empty-state"><strong>Board not connected yet</strong><span>The database address and key haven't been added to this page.</span></div></div>`; return; }
+  const sb=window.supabase.createClient(CFG.url, CFG.key);
+  window.__sb=sb;
+  const token=(location.hash||"").replace(/^#/,"").replace(/^t=/,"");
+  if(token && token.length>=16){
+    /* escort mode: personal link, no login */
+    isAdmin=false; viewMode="escort";
+    db=escortDB(sb, token); wireStore();
+    let ok=false; try{ ok=await db.refresh(); }catch(e){}
+    if(!ok){ $("#modeTag").textContent="Escort"; HALT=`<div class="panel"><div class="empty-state"><strong>This link isn't active</strong><span>Ask your site lead to send you a new personal link.</span></div></div>`; $("#app").innerHTML=HALT; return; }
+    myUid=db.me; ESCORT_ID=db.me;
+    if(!S.checkins[myUid]) { try{ await sb.rpc("escort_submit",{p_token:token,p_patch:{}}); await db.refresh(); }catch(e){} }
+    render();
+    setInterval(()=>{ if(!document.hidden) db.refresh().catch(()=>{}); }, 20000);
+    document.addEventListener("visibilitychange",()=>{ if(!document.hidden) db.refresh().catch(()=>{}); });
+    return;
+  }
+  /* admin mode: Supabase sign-in */
+  const {data:{session}}=await sb.auth.getSession();
+  if(!session){ loginScreen(sb); return; }
+  isAdmin=true; myUid="lead"; viewMode="admin";
+  db=adminDB(sb);
+  try{ await db.load(); }catch(e){ loginScreen(sb, "Couldn't load the board: "+(e.message||e)); return; }
+  wireStore(); db.live();
+  /* every escort needs a secret link token */
+  for(const [id,e] of Object.entries(R.escorts)) if(!e.token) patch("escorts", id, {token:newToken()});
+  render();
+  setInterval(()=>{ if(!busy() && !document.activeElement?.matches("input,textarea,select")) render(); }, 60000);
+})();
+
+})();
+</script>
+
 </body></html>
