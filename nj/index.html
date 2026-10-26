@@ -1022,6 +1022,7 @@ function renderEscortView(app){
   const myCars=carsFor(e), partnerCars=partners.flatMap(p=>carsFor(p));
   const teamCars=[...myCars.map(c=>({...c,mine:true})), ...partners.flatMap(p=>carsFor(p).map(c=>({...c,mine:false})))];
   const partnerReported=partners.filter(p=>carIn(p)&&!carsFor(p).length);
+  if(carIn(e)&&!myCars.length) partnerReported.unshift({...e, __me:true});
   app.innerHTML=`<div class="me">
     <div class="me-hero"><div class="row"><span class="badge-sub">${esc(S.site.siteName||"New Jersey")} site</span><div class="spacer"></div>${pill(e)}</div>
       <div class="nm">${esc(e.name)}</div>${e.phone?`<div class="mono muted">${esc(e.phone)}</div>`:""}
@@ -1068,7 +1069,7 @@ function renderEscortView(app){
       <dt>In name of</dt><dd><b>${car.mine?"You":esc(name(car.assignedTo))}</b></dd>
       ${car.vehicle?`<dt>Vehicle</dt><dd>${esc(car.vehicle)}${car.color?` · ${esc(car.color)}`:""}</dd>`:""}
       ${car.agency?`<dt>Agency</dt><dd>${esc(car.agency)}</dd>`:""}
-      ${car.returnAt?`<dt>Return</dt><dd class="mono">${fDT(car.returnAt)}</dd>`:""}</dl>`), ...partnerReported.map(p=>`<dl class="kv"><dt>In name of</dt><dd><b>${esc(p.name)}</b></dd>${carIn(p).vehicle?`<dt>Vehicle</dt><dd>${esc(carIn(p).vehicle)}</dd>`:""}</dl>`)].join('<hr style="border:0;border-top:1px solid var(--line);margin:0">') :`<p class="muted" style="margin:0">No rental car in your or your partner's name.</p>`}</div></div>
+      ${car.returnAt?`<dt>Return</dt><dd class="mono">${fDT(car.returnAt)}</dd>`:""}</dl>`), ...partnerReported.map(p=>`<dl class="kv"><dt>In name of</dt><dd><b>${p.__me?"You":esc(p.name)}</b></dd>${carIn(p).vehicle?`<dt>Vehicle</dt><dd>${esc(carIn(p).vehicle)}</dd>`:""}</dl>`)].join('<hr style="border:0;border-top:1px solid var(--line);margin:0">') :`<p class="muted" style="margin:0">No rental car in your or your partner's name.</p>`}</div></div>
     ${e.notes?`<div class="panel"><div class="hd"><h3>Notes from site lead</h3></div><div class="bd">${esc(e.notes)}</div></div>`:""}
     ${mine?.escortId===e.id && chatAllowed() ? chatPanelHTML() : `<div class="panel"><div class="hd"><h3>Team chat</h3></div><div class="bd"><p class="muted" style="margin:0">${mine?.escortId===e.id ? "The team chat opens once you're checked in as on site." : "Tap “Yes, this is me” above to unlock the team chat once you're on site."}</p></div></div>`}
     ${status(e).k==="on"?`<div class="panel"><div class="hd"><h3>Who's in what room</h3></div><div class="bd" style="display:grid;gap:10px"><input id="dirQ" type="search" placeholder="Type a name or room number" aria-label="Search rooms"><div id="dirOut">${dirHTML("")}</div></div></div>`:""}
