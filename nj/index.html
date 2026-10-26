@@ -584,22 +584,33 @@ function quickSetupHTML(es){
   const teams=list("teams").sort((a,b)=>String(a.name||"").localeCompare(String(b.name||""),undefined,{numeric:true}));
   const live=es.filter(e=>!["can","out"].includes(status(e).k));
   if(!live.length) return `<p class="muted" style="margin:0">Add escorts first.</p>`;
-  return `<div class="tbl-wrap"><table><thead><tr><th>Escort</th><th>HR218</th><th>Room</th><th>Team</th><th>Rental in name</th></tr></thead><tbody>
+  return `<div class="tbl-wrap"><table><thead><tr><th>Escort</th><th>HR218</th><th>Room</th><th>Team</th><th>Rental in name</th><th></th></tr></thead><tbody>
   ${live.map(e=>`<tr><td><b>${esc(e.name)}</b></td>
     <td><input type="checkbox" data-qs-hr="${e.id}" aria-label="${esc(e.name)} is HR218" ${isHR(e)?"checked":""}></td>
     <td><select data-qs-room="${e.id}" aria-label="Room for ${esc(e.name)}">${opt("","No room",!e.roomId)}${rooms.map(r=>{const occ=roomOcc(r.id).filter(x=>x.id!==e.id);return opt(r.id,`${roomLabel(r)} (${occ.length}/2)`,e.roomId===r.id,occ.length>=2)}).join("")}</select></td>
     <td><select data-qs-team="${e.id}" aria-label="Team for ${esc(e.name)}">${opt("","No team",!e.teamId)}${teams.map(t=>{const m=teamMembers(t.id).filter(x=>x.id!==e.id);return opt(t.id,`${teamLabel(t)} (${m.length}/2)`,e.teamId===t.id,m.length>=2)}).join("")}</select></td>
-    <td style="white-space:nowrap"><label class="check" style="display:inline-flex"><input type="radio" name="qs_r_${e.id}" data-qs-rent="${e.id}" value="yes" ${hasRental(e)?"checked":""}> Yes</label> <label class="check" style="display:inline-flex;margin-left:10px"><input type="radio" name="qs_r_${e.id}" data-qs-rent="${e.id}" value="no" ${e.carInName&&e.carInName.has===false&&!carsFor(e).length?"checked":""}> No</label></td></tr>`).join("")}
+    <td style="white-space:nowrap"><label class="check" style="display:inline-flex"><input type="radio" name="qs_r_${e.id}" data-qs-rent="${e.id}" value="yes" ${hasRental(e)?"checked":""}> Yes</label> <label class="check" style="display:inline-flex;margin-left:10px"><input type="radio" name="qs_r_${e.id}" data-qs-rent="${e.id}" value="no" ${e.carInName&&e.carInName.has===false&&!carsFor(e).length?"checked":""}> No</label></td><td><button class="btn sm danger" data-del-escort="${e.id}">${DEL_ARM===e.id?"Tap again to remove":"Remove"}</button></td></tr>`).join("")}
   </tbody></table></div>
   <p class="note" style="margin:8px 0 0">Changes save as you pick. ${!rooms.length?"Add rooms on the Hotel rooms tab to assign them here. ":""}${!teams.length?"Add teams on the Partners tab to assign them here.":""}</p>`;
 }
+
+async function removeEscort(id){
+  const e={id,...(S.escorts[id]||{})};
+  for(const c of carsFor(e)) await patch("cars", c.id, {assignedTo:""});
+  try{ await db.collection("checkins").doc(id).delete(); }catch(err){}
+  try{ await db.collection("dm").doc(id).delete(); }catch(err){}
+  try{ await db.collection("chat").doc(id).delete(); }catch(err){}
+  await db.collection("escorts").doc(id).delete();
+  toast(`${e.name||"Escort"} removed from the roster. Their personal link no longer works.`);
+}
+let DEL_ARM="";
 
 /* ---------- ADMIN: escorts ---------- */
 function rEscorts(app){
   const es=escorts();
   app.innerHTML=`<div class="panel"><div class="hd"><h3>Quick setup</h3><span class="note">Set everyone's room, team and rental in one place</span><div class="spacer"></div><button class="btn sm" id="qsToggle">${P.qs?"Hide":"Show"}</button></div>${P.qs?`<div class="bd">${quickSetupHTML(es)}</div>`:""}</div>
   <div class="panel"><div class="hd"><h2>Escort roster</h2><span class="muted">${es.length} total</span><div class="spacer"></div><button class="btn primary" data-act="newEscort">Add escort</button></div>
-  ${es.length? `<div class="tbl-wrap"><table><thead><tr><th>Name</th><th>Status</th><th>Arrives</th><th>Departs</th><th>Room</th><th>Roommate</th><th>Partner</th><th>Rental car in name</th><th>Invite</th></tr></thead><tbody>
+  ${es.length? `<div class="tbl-wrap"><table><thead><tr><th>Name</th><th>Status</th><th>Arrives</th><th>Departs</th><th>Room</th><th>Roommate</th><th>Partner</th><th>Rental car in name</th><th>Invite</th><th></th></tr></thead><tbody>
   ${es.map(e=>{const car=carsFor(e)[0];return `<tr class="click" data-edit-escort="${e.id}">
     <td><b>${esc(e.name)}</b>${hrPill(e)}${e.phone?`<div class="note mono">${esc(e.phone)}</div>`:""}</td><td>${pill(e)}</td>
     <td class="t">${arrT(e)}</td>
@@ -607,7 +618,7 @@ function rEscorts(app){
     <td>${e.roomId? esc(roomLabel(S.rooms[e.roomId])) : '<span class="pill p-flag">None</span>'}</td>
     <td>${esc(roommateOf(e).map(x=>x.name).join(", ")||"—")}</td>
     <td>${e.teamId? `${esc(teamLabel(S.teams[e.teamId]))}<div class="note">${esc(partnerOf(e).map(x=>x.name).join(", ")||"open slot")}</div>` : '<span class="pill p-flag">None</span>'}</td>
-    <td>${car? `${esc(car.vehicle||"Yes")}` : carIn(e)? `${esc(carNameT(e))}<div class="note">Reported by escort</div>` : e.carInName? '<span class="muted">None in name</span>' : '<span class="muted">—</span>'}</td><td>${invPill(e)}</td></tr>`}).join("")}
+    <td>${car? `${esc(car.vehicle||"Yes")}` : carIn(e)? `${esc(carNameT(e))}<div class="note">Reported by escort</div>` : e.carInName? '<span class="muted">None in name</span>' : '<span class="muted">—</span>'}</td><td>${invPill(e)}</td><td><button class="btn sm danger" data-del-escort="${e.id}">${DEL_ARM===e.id?"Tap again to remove":"Remove"}</button></td></tr>`}).join("")}
   </tbody></table></div>` : `<div class="empty-state"><strong>No escorts on the roster yet</strong><span>Add each escort with arrival and departure times, then assign rooms, partners and rental cars.</span><button class="btn primary" data-act="newEscort">Add the first escort</button></div>`}</div>
   ${es.length? `<div class="panel"><div class="hd"><h3>Personal links</h3><span class="note">Send each escort their own link. It opens straight to their assignment.</span></div><div class="bd" style="display:grid;gap:8px">
     ${es.map(e=>`<div class="row" style="flex-wrap:nowrap"><span style="min-width:140px;font-weight:600">${esc(e.name)}</span><div class="linkbox" style="flex:1;min-width:0"><input readonly id="lk_${e.id}" value="${esc(linkFor(e.id))}"><button class="btn sm" data-copy="lk_${e.id}">Copy</button></div></div>`).join("")}
@@ -1028,7 +1039,7 @@ function editEscort(id){
            else if(!hit.name && n) await db.collection("pool").doc(hit.id).set({...S.pool[hit.id], name:n}); }catch(err){} }
     if(rent) await setRental(e.id, rent==="yes", true);
   },
-  id? async()=>{ for(const c of carsFor(e)) await patch("cars",c.id,{assignedTo:""}); await remove("escorts",id); } : null);
+  id? ()=>removeEscort(id) : null);
   const nl=$("#m_newlink"); if(nl) nl.onclick=async()=>{ await patch("escorts", id, {token:newToken()}); $("#modalRoot").innerHTML=""; toast("New link created. The old one no longer works."); };
   const nm=$("#m_name"), ph=$("#m_phone"); let autoPh=!ph.value, autoNm=!nm.value;
   const hint=document.createElement("span"); hint.className="note"; hint.id="m_hint"; ph.parentElement.appendChild(hint);
@@ -1289,11 +1300,12 @@ function copyText(text, okMsg, markIds){
 }
 /* ---------- events ---------- */
 document.addEventListener("click", ev=>{
-  const t=ev.target.closest("[data-fd-copy],[data-car-from],[data-serviced],[data-wk-save],[data-wk-edit],[data-wk-open],[data-pool-edit],[data-pool-add],[data-wk],[data-invite],[data-mark-inv],[data-copy-all],[data-act],[data-edit-escort],[data-edit-room],[data-edit-car],[data-edit-team],[data-pick],[data-copy],[data-tab],[data-tab-go]");
+  const t=ev.target.closest("[data-del-escort],[data-fd-copy],[data-car-from],[data-serviced],[data-wk-save],[data-wk-edit],[data-wk-open],[data-pool-edit],[data-pool-add],[data-wk],[data-invite],[data-mark-inv],[data-copy-all],[data-act],[data-edit-escort],[data-edit-room],[data-edit-car],[data-edit-team],[data-pick],[data-copy],[data-tab],[data-tab-go]");
   if(!t) return;
   if(t.matches("a")) ev.preventDefault();
   if(t.dataset.tab||t.dataset.tabGo){ tab=t.dataset.tab||t.dataset.tabGo; ls.set("njsb_tab",tab); return render(); }
   if(viewMode==="admin"){
+    if(t.dataset.delEscort){ const id=t.dataset.delEscort; if(DEL_ARM!==id){ DEL_ARM=id; dirty=false; render(); setTimeout(()=>{ if(DEL_ARM===id){ DEL_ARM=""; render(); } },5000); return; } DEL_ARM=""; return removeEscort(id); }
     if(t.dataset.serviced) return markServiced(t.dataset.serviced);
     if(t.dataset.fdCopy) return copyText(frontDesk().text, "Front desk list copied", []);
     if(t.dataset.carFrom){ const e=S.escorts[t.dataset.carFrom], c=carIn(e); return save("cars", uid("c"), {vehicle:c.vehicle||"", assignedTo:t.dataset.carFrom, color:"", agency:"", notes:"Reported by escort"}); }
