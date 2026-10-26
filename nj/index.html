@@ -292,6 +292,8 @@ function editWeekNeed(from){
 }
 function inviteState(e){ if(e.claimedBy) return {k:"joined",t:"Joined"}; if(e.invitedAt) return {k:"inv",t:"Invited"}; return {k:"flag",t:"Not invited"}; }
 const invPill = e => { const i=inviteState(e); return `<span class="pill p-${i.k}">${i.t}</span>` };
+function smsHref(e){ const d=digits(e.phone); if(d.length!==10) return ""; return `sms:+1${d}?&body=${encodeURIComponent(inviteText(e))}`; }
+const textBtn = e => { const h=smsHref(e); return h ? `<a class="btn sm primary" href="${h}" data-texted="${e.id}">Text invite</a>` : `<span class="note">No phone</span>`; };
 function inviteText(e){ const st=S.site; return `${e.name}, this is ${st.siteLead||"your site lead"} with ${st.client||"SGI"}. You're on the ${st.siteName||"New Jersey"} roster, arriving ${arrT(e)}. Your assignment page (hotel room, partner, team chat) is here: ${linkFor(e.id)}\nNo login needed. Please open it and answer the departure questions. Keep this link to yourself, it is your personal page.`; }
 /* ---------- derived ---------- */
 const list = k => Object.entries(S[k]).map(([id,v]) => ({id,...v}));
@@ -444,7 +446,7 @@ function rWeek(app){
     <td class="t">${arrT(e)}</td><td>${e.roomId?esc(roomLabel(S.rooms[e.roomId])):'<span class="pill p-flag">None</span>'}</td>
     <td>${e.teamId?esc(partnerOf(e).map(x=>x.name).join(", ")||teamLabel(S.teams[e.teamId])):'<span class="pill p-flag">None</span>'}</td>
     <td>${invPill(e)}${e.invitedAt&&!e.claimedBy?`<div class="note">${fISO(e.invitedAt)}</div>`:""}</td>
-    <td style="white-space:nowrap"><button class="btn sm" data-invite="${e.id}">Copy invite</button>${!e.invitedAt&&!e.claimedBy?` <button class="btn sm" data-mark-inv="${e.id}">Mark invited</button>`:""}</td></tr>`).join("")}
+    <td style="white-space:nowrap">${textBtn(e)} <button class="btn sm" data-invite="${e.id}">Copy invite</button>${!e.invitedAt&&!e.claimedBy?` <button class="btn sm" data-mark-inv="${e.id}">Mark invited</button>`:""}</td></tr>`).join("")}
   </tbody></table></div>` : `<div class="empty-state"><strong>No arrivals booked for this week</strong><span>Paste SOC's list below to add everyone at once.</span></div>`}</div>
   <div class="grid2">
     <div class="panel"><div class="hd"><h3>Add SOC's list</h3></div><div class="bd" style="display:grid;gap:12px">
@@ -655,7 +657,7 @@ function rEscorts(app){
     <td>${hasRental(e)? "Yes" : e.carInName? '<span class="muted">No</span>' : '<span class="muted">—</span>'}</td><td>${invPill(e)}</td><td><button class="btn sm danger" data-del-escort="${e.id}">${DEL_ARM===e.id?"Tap again to remove":"Remove"}</button></td></tr>`}).join("")}
   </tbody></table></div>` : `<div class="empty-state"><strong>No escorts on the roster yet</strong><span>Add each escort with arrival and departure times, then assign rooms, partners and rental cars.</span><button class="btn primary" data-act="newEscort">Add the first escort</button></div>`}</div>
   ${es.length? `<div class="panel"><div class="hd"><h3>Personal links</h3><span class="note">Send each escort their own link. It opens straight to their assignment.</span></div><div class="bd" style="display:grid;gap:8px">
-    ${es.map(e=>`<div class="row" style="flex-wrap:nowrap"><span style="min-width:140px;font-weight:600">${esc(e.name)}</span><div class="linkbox" style="flex:1;min-width:0"><input readonly id="lk_${e.id}" value="${esc(linkFor(e.id))}"><button class="btn sm" data-copy="lk_${e.id}">Copy</button></div></div>`).join("")}
+    ${es.map(e=>`<div class="row" style="flex-wrap:nowrap"><span style="min-width:140px;font-weight:600">${esc(e.name)}</span><div class="linkbox" style="flex:1;min-width:0"><input readonly id="lk_${e.id}" value="${esc(linkFor(e.id))}"><button class="btn sm" data-copy="lk_${e.id}">Copy</button>${textBtn(e)}</div></div>`).join("")}
     <p class="note" style="margin:0">Links work on any phone with no login. Each one only opens that escort&#39;s own page.</p>
   </div></div>`:""}`;
   $("#qsToggle").onclick=()=>{ P.qs=!P.qs; ls.set("njsb_qs",P.qs?"1":""); render(); };
@@ -1313,6 +1315,7 @@ function copyText(text, okMsg, markIds){
 }
 /* ---------- events ---------- */
 document.addEventListener("click", ev=>{
+  const tx=ev.target.closest("[data-texted]"); if(tx){ const id=tx.dataset.texted; if(!R.escorts[id]?.invitedAt) patch("escorts", id, {invitedAt:new Date().toISOString()}); toast("Opening Messages…"); return; }
   const t=ev.target.closest("[data-del-escort],[data-fd-copy],[data-serviced],[data-wk-save],[data-wk-edit],[data-wk-open],[data-pool-edit],[data-pool-add],[data-wk],[data-invite],[data-mark-inv],[data-copy-all],[data-act],[data-edit-escort],[data-edit-room],[data-edit-car],[data-edit-team],[data-pick],[data-copy],[data-tab],[data-tab-go]");
   if(!t) return;
   if(t.matches("a")) ev.preventDefault();
