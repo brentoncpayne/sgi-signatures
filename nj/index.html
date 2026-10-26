@@ -1088,6 +1088,7 @@ function renderEscortView(app){
     ${room?`<div class="panel"><div class="hd"><h3>Request room service</h3></div><div class="bd" style="display:grid;gap:12px">
       ${(()=>{const r=mine?.escortId===e.id&&mine.svc&&!mine.svc.doneAt?mine.svc:null; return r?`<div class="row"><span class="pill p-depart">${esc(r.type)}</span><span>Requested ${fISO(r.at)}${r.note?` — “${esc(r.note)}”`:""}. Send a new one below to change it.</span></div>`:(mine?.svc?.doneAt?`<p class="note" style="margin:0">Last request (${esc(mine.svc.type)}) was completed ${fISO(mine.svc.doneAt)}.</p>`:"");})()}
       <p class="note" style="margin:0">Pick what the front desk should service. It goes on your site lead's front desk list.</p>
+      <div style="background:var(--warn-bg);color:var(--ink);border-radius:6px;padding:10px 12px;font-size:13px;line-height:1.45"><b>Please don't request beds made every day.</b> Ask for bed service only when the sheets are dirty. Keep your room as clean as you can for your roommate.</div>
       <div class="fg" role="radiogroup" aria-label="Service type">${SVC_TYPES.map((t,i)=>`<label class="check" style="border:1px solid var(--line);border-radius:6px;padding:10px"><input type="radio" name="svc_type" value="${esc(t)}" ${i===0?"":""}> ${esc(t)}</label>`).join("")}</div>
       <label class="f">Note (optional)<input id="svc_note" placeholder="e.g. Day sleeper, after 1300 please"></label>
       <div class="row"><button class="btn primary" id="svc_send">Send request</button><span class="note" id="svc_msg"></span></div>
