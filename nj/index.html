@@ -618,7 +618,7 @@ function rEscorts(app){
     <td>${e.roomId? esc(roomLabel(S.rooms[e.roomId])) : '<span class="pill p-flag">None</span>'}</td>
     <td>${esc(roommateOf(e).map(x=>x.name).join(", ")||"—")}</td>
     <td>${e.teamId? `${esc(teamLabel(S.teams[e.teamId]))}<div class="note">${esc(partnerOf(e).map(x=>x.name).join(", ")||"open slot")}</div>` : '<span class="pill p-flag">None</span>'}</td>
-    <td>${car? `${esc(car.vehicle||"Yes")}` : carIn(e)? `${esc(carNameT(e))}<div class="note">Reported by escort</div>` : e.carInName? '<span class="muted">None in name</span>' : '<span class="muted">—</span>'}</td><td>${invPill(e)}</td><td><button class="btn sm danger" data-del-escort="${e.id}">${DEL_ARM===e.id?"Tap again to remove":"Remove"}</button></td></tr>`}).join("")}
+    <td>${hasRental(e)? "Yes" : e.carInName? '<span class="muted">No</span>' : '<span class="muted">—</span>'}</td><td>${invPill(e)}</td><td><button class="btn sm danger" data-del-escort="${e.id}">${DEL_ARM===e.id?"Tap again to remove":"Remove"}</button></td></tr>`}).join("")}
   </tbody></table></div>` : `<div class="empty-state"><strong>No escorts on the roster yet</strong><span>Add each escort with arrival and departure times, then assign rooms, partners and rental cars.</span><button class="btn primary" data-act="newEscort">Add the first escort</button></div>`}</div>
   ${es.length? `<div class="panel"><div class="hd"><h3>Personal links</h3><span class="note">Send each escort their own link. It opens straight to their assignment.</span></div><div class="bd" style="display:grid;gap:8px">
     ${es.map(e=>`<div class="row" style="flex-wrap:nowrap"><span style="min-width:140px;font-weight:600">${esc(e.name)}</span><div class="linkbox" style="flex:1;min-width:0"><input readonly id="lk_${e.id}" value="${esc(linkFor(e.id))}"><button class="btn sm" data-copy="lk_${e.id}">Copy</button></div></div>`).join("")}
@@ -889,22 +889,19 @@ function rChat(app){
 
 /* ---------- ADMIN: cars ---------- */
 function rCars(app){
-  const cs=list("cars").sort((a,b)=>(a.vehicle||"").localeCompare(b.vehicle||""));
-  const rep=escorts().filter(e=>carIn(e) && !cs.some(c=>c.assignedTo===e.id) && !["can","out"].includes(status(e).k));
-  const noAns=escorts().filter(e=>!e.carInName && e.claimedBy && !["can","out"].includes(status(e).k));
-  app.innerHTML=`<div class="panel"><div class="hd"><h3>Who has a rental in their name</h3></div><div class="bd" style="display:grid;gap:8px">
-    ${[...cs.filter(c=>c.assignedTo&&S.escorts[c.assignedTo]).map(c=>`<div class="row"><b>${esc(name(c.assignedTo))}</b><span>${esc(c.vehicle||"")}</span></div>`),
-       ...rep.map(e=>`<div class="row"><b>${esc(e.name)}</b><span>${esc(carIn(e).vehicle||"")}</span><span class="pill p-self">Reported by escort</span><button class="btn sm" data-car-from="${e.id}">Add to cars</button></div>`)].join("") || '<p class="muted" style="margin:0">Nobody yet. Escorts answer this on their page.</p>'}
-    ${noAns.length?`<p class="note" style="margin:0">Haven't answered yet: ${esc(noAns.map(e=>e.name).join(", "))}</p>`:""}
-  </div></div>
-  <div class="panel"><div class="hd"><h2>Rental cars</h2><span class="muted">${cs.length} vehicles · ${cs.filter(c=>!c.assignedTo).length} unassigned</span><div class="spacer"></div><button class="btn primary" data-act="newCar">Add car</button></div>
-  ${cs.length? `<div class="tbl-wrap"><table><thead><tr><th>Vehicle</th><th>Agency</th><th>Rented in name of</th><th>Partner riding</th><th>Pick-up</th><th>Return</th></tr></thead><tbody>
-  ${cs.map(c=>{const e=S.escorts[c.assignedTo];return `<tr class="click" data-edit-car="${c.id}"><td><b>${esc(c.vehicle||"—")}</b>${c.color?`<div class="note">${esc(c.color)}</div>`:""}</td>
-  <td>${esc(c.agency||"—")}</td>
-  <td>${e? `<b>${esc(e.name)}</b>` : '<span class="pill p-flag">Unassigned</span>'}</td>
-  <td>${e? esc(partnerOf({id:c.assignedTo,...e}).map(x=>x.name).join(", ")||"—") : "—"}</td>
-  <td class="t">${fDT(c.pickupAt)}</td><td class="t">${fDT(c.returnAt)}</td></tr>`}).join("")}</tbody></table></div>`
-  : `<div class="empty-state"><strong>No rental cars added</strong><span>Add each rental and whose name it's rented in.</span><button class="btn primary" data-act="newCar">Add the first car</button></div>`}</div>`;
+  const live=escorts().filter(e=>!["can","out"].includes(status(e).k)).sort((x,y)=>(x.name||"").localeCompare(y.name||""));
+  const yes=live.filter(hasRental), no=live.filter(e=>!hasRental(e) && e.carInName && e.carInName.has===false), unk=live.filter(e=>!hasRental(e) && !(e.carInName && e.carInName.has===false));
+  app.innerHTML=`<div class="stats">
+    <div class="stat"><b>${yes.length}</b><span>Rental in their name</span></div>
+    <div class="stat"><b>${no.length}</b><span>No rental</span></div>
+    <div class="stat ${unk.length?"alert":""}"><b>${unk.length}</b><span>Not answered</span></div></div>
+  <div class="panel"><div class="hd"><h2>Rental cars</h2><span class="note">Who has a rental car in their name. SOC keeps the vehicle and rental details.</span></div>
+  ${live.length?`<div class="tbl-wrap"><table><thead><tr><th>Escort</th><th>Team</th><th>Rental in their name</th><th>Answered by</th></tr></thead><tbody>
+  ${live.map(e=>`<tr><td><b>${esc(e.name)}</b></td><td>${e.teamId?esc(teamLabel(S.teams[e.teamId])):'<span class="muted">—</span>'}</td>
+    <td style="white-space:nowrap"><label class="check" style="display:inline-flex"><input type="radio" name="rc_${e.id}" data-qs-rent="${e.id}" value="yes" ${hasRental(e)?"checked":""}> Yes</label> <label class="check" style="display:inline-flex;margin-left:10px"><input type="radio" name="rc_${e.id}" data-qs-rent="${e.id}" value="no" ${e.carInName&&e.carInName.has===false&&!carsFor(e).length?"checked":""}> No</label></td>
+    <td class="note">${!e.carInName?(carsFor(e).length?"Site lead":"—"):e.carInName.byAdmin?"Site lead":"Escort"}${e.carInName?.at?` · ${fISO(e.carInName.at)}`:""}</td></tr>`).join("")}
+  </tbody></table></div>`:`<div class="empty-state"><strong>No escorts on the roster</strong><span>Add escorts first.</span></div>`}</div>`;
+  app.querySelectorAll("[data-qs-rent]").forEach(r=>r.onchange=()=>{ if(r.checked){ dirty=false; setRental(r.dataset.qsRent, r.value==="yes"); } });
 }
 
 /* ---------- ADMIN: teams ---------- */
@@ -931,7 +928,7 @@ function rReport(app){
       <label class="f">To<input type="date" id="rpTo" value="${esc(st.periodEnd||"")}"></label>
     </div>
     <div style="display:grid;gap:6px">
-      ${[["sum","Summary"],["wk","On site now & coming next week"],["mov","Arrivals & departures"],["ros","Full roster"],["lod","Lodging (rooms)"],["veh","Rental vehicles"],["tm","Partner teams"]].map(([k,l])=>`<label class="check"><input type="checkbox" id="rp_${k}" checked> ${l}</label>`).join("")}
+      ${[["sum","Summary"],["wk","On site now & coming next week"],["mov","Arrivals & departures"],["ros","Full roster"],["lod","Lodging (rooms)"],["veh","Rental cars"],["tm","Partner teams"]].map(([k,l])=>`<label class="check"><input type="checkbox" id="rp_${k}" checked> ${l}</label>`).join("")}
     </div>
     <label class="f">Remarks for SOC (optional)<textarea id="rpNotes" placeholder="Anything SOC should know about this period">${esc(st.reportNotes||"")}</textarea></label>
     <div class="row"><button class="btn primary" id="rpGo">Export PDF</button><span class="note" id="rpMsg"></span></div>
@@ -1007,7 +1004,6 @@ function editEscort(id){
   const cars=list("cars"); const myCar=cars.find(c=>c.assignedTo===e.id);
   const roomOpts=opt("","No room",!e.roomId)+rooms.map(r=>{const occ=roomOcc(r.id).filter(x=>x.id!==e.id);return opt(r.id,`${roomLabel(r)} (${occ.length}/2${occ.length?": "+occ.map(x=>x.name).join(", "):""})`,e.roomId===r.id,occ.length>=2)}).join("");
   const teamOpts=opt("","No partner team",!e.teamId)+teams.map(t=>{const m=teamMembers(t.id).filter(x=>x.id!==e.id);return opt(t.id,`${teamLabel(t)} (${m.length?"with "+m.map(x=>x.name).join(", "):"open"})`,e.teamId===t.id,m.length>=2)}).join("");
-  const carOpts=opt("","No car",!myCar)+cars.map(c=>{const o=c.assignedTo&&c.assignedTo!==e.id?S.escorts[c.assignedTo]?.name:"";return opt(c.id,`${c.vehicle||"Car"}${o?" (now: "+o+")":""}`,myCar?.id===c.id)}).join("");
   modal(id?"Edit escort":"Add escort", `
     <datalist id="poolNames">${poolList().filter(p=>p.name).map(p=>`<option value="${esc(p.name)}">${esc(fmtPhone(p.phone))}</option>`).join("")}</datalist>
     <div class="fg"><label class="f">Full name<input id="m_name" required list="poolNames" autocomplete="off" value="${esc(e.name||"")}"></label>
@@ -1077,21 +1073,6 @@ function editRoom(id){
     for(const [i,x] of [a,b].entries()) if(x && (S.escorts[x]?.roomId!==r.id || S.escorts[x]?.bed!==i+1)) await patch("escorts",x,{roomId:r.id,bed:i+1});
   },
   id? async()=>{ for(const o of occ) if(o) await patch("escorts",o.id,{roomId:"",bed:null}); await remove("rooms",id); } : null);
-}
-function editCar(id){
-  const c=id? {id,...S.cars[id]} : {id:uid("c")};
-  modal(id?"Edit rental car":"Add rental car", `
-    <div class="fg"><label class="f">Vehicle<input id="m_vehicle" value="${esc(c.vehicle||"")}" placeholder="e.g. 2025 Chevy Tahoe"></label>
-    <label class="f">Color<input id="m_color" value="${esc(c.color||"")}"></label>
-    <label class="f">Agency<input id="m_agency" value="${esc(c.agency||"")}" placeholder="e.g. Enterprise EWR"></label>
-    <label class="f">Rented in name of<select id="m_assignedTo">${opt("","Unassigned",!c.assignedTo)}${escorts().filter(e=>status(e).k!=="can").map(e=>opt(e.id,e.name,c.assignedTo===e.id)).join("")}</select></label>
-    <label class="f">Pick-up<input type="datetime-local" id="m_pickupAt" value="${esc(c.pickupAt||"")}"></label>
-    <label class="f">Return<input type="datetime-local" id="m_returnAt" value="${esc(c.returnAt||"")}"></label></div>
-    <label class="f">Notes<textarea id="m_notes">${esc(c.notes||"")}</textarea></label>`,
-  async()=>{
-    if(!v("m_vehicle")&&!v("m_assignedTo")){ toast("Enter the vehicle or whose name it's in"); return false; }
-    await save("cars", c.id, {vehicle:v("m_vehicle"),color:v("m_color"),agency:v("m_agency"),assignedTo:v("m_assignedTo"),pickupAt:v("m_pickupAt"),returnAt:v("m_returnAt"),notes:v("m_notes")});
-  }, id? ()=>remove("cars",id) : null);
 }
 function editTeam(id){
   const nums=list("teams").map(x=>parseInt(String(x.name).replace(/\D/g,""))||0); const t=id? {id,...S.teams[id]} : {id:uid("t"), name:String((nums.length?Math.max(...nums):0)+1)};
@@ -1175,9 +1156,7 @@ function renderEscortView(app){
     </div></div>
     <div class="panel"><div class="hd"><h3>Team rental cars</h3>${teamCars.length+partnerReported.length>1?'<span class="pill p-grp">2 cars</span>':""}</div><div class="bd" style="display:grid;gap:14px">${teamCars.length||partnerReported.length? [...teamCars.map(car=>`<dl class="kv">
       <dt>In name of</dt><dd><b>${car.mine?"You":esc(name(car.assignedTo))}</b></dd>
-      ${car.vehicle?`<dt>Vehicle</dt><dd>${esc(car.vehicle)}${car.color?` · ${esc(car.color)}`:""}</dd>`:""}
-      ${car.agency?`<dt>Agency</dt><dd>${esc(car.agency)}</dd>`:""}
-      ${car.returnAt?`<dt>Return</dt><dd class="mono">${fDT(car.returnAt)}</dd>`:""}</dl>`), ...partnerReported.map(p=>`<dl class="kv"><dt>In name of</dt><dd><b>${p.__me?"You":esc(p.name)}</b></dd>${carIn(p).vehicle?`<dt>Vehicle</dt><dd>${esc(carIn(p).vehicle)}</dd>`:""}</dl>`)].join('<hr style="border:0;border-top:1px solid var(--line);margin:0">') :`<p class="muted" style="margin:0">No rental car in your or your partner's name.</p>`}</div></div>
+</dl>`), ...partnerReported.map(p=>`<dl class="kv"><dt>In name of</dt><dd><b>${p.__me?"You":esc(p.name)}</b></dd></dl>`)].join('<hr style="border:0;border-top:1px solid var(--line);margin:0">') :`<p class="muted" style="margin:0">No rental car in your or your partner's name.</p>`}</div></div>
     ${e.notes?`<div class="panel"><div class="hd"><h3>Notes from site lead</h3></div><div class="bd">${esc(e.notes)}</div></div>`:""}
     ${ESCORT_ID ? dmPanelHTML(ESCORT_ID, "Message your site lead") : ""}
     ${mine?.escortId===e.id && chatAllowed() ? chatPanelHTML() : `<div class="panel"><div class="hd"><h3>NJ site chat</h3></div><div class="bd"><p class="muted" style="margin:0">${mine?.escortId===e.id ? "The site chat opens once you're checked in as on site." : "The site chat opens once you're on site."}</p></div></div>`}
@@ -1254,7 +1233,7 @@ async function exportPDF(){
     section("On site now");
     table(["Escort","Phone","Arrived","Expected departure","Room","Partner"], all.filter(e=>status(e).k==="on").map(e=>[e.name,e.phone||"—",arrT(e),fDT(e.departAt)+(e.departBy==="escort"?" (self-reported)":""),e.roomId?roomLabel(S.rooms[e.roomId]):"Unassigned",partnerOf(e).map(x=>x.name).join(", ")||"Unassigned"]));
     section(`Coming next week · ${fD(nw.from)} – ${fD(nw.to)}`);
-    table(["Escort","Phone","Arrives","Room","Partner","Rental car"], all.filter(e=>inWeek(e.arriveAt,nw)).map(e=>{const c=carsFor(e)[0];return [e.name,e.phone||"—",arrT(e),e.roomId?roomLabel(S.rooms[e.roomId]):"To be assigned",partnerOf(e).map(x=>x.name).join(", ")||"To be assigned",c?(c.vehicle||"Yes"):"—"]}));
+    table(["Escort","Phone","Arrives","Room","Partner","Rental car"], all.filter(e=>inWeek(e.arriveAt,nw)).map(e=>{const c=carsFor(e)[0];return [e.name,e.phone||"—",arrT(e),e.roomId?roomLabel(S.rooms[e.roomId]):"To be assigned",partnerOf(e).map(x=>x.name).join(", ")||"To be assigned",hasRental(e)?"Yes":"—"]}));
   }
   if($("#rp_mov").checked){
     section("Arrivals & departures");
@@ -1265,15 +1244,15 @@ async function exportPDF(){
   }
   if($("#rp_ros").checked){
     section("Personnel roster");
-    table(["Escort","HR218","Phone","Status","Arrives","Departs","If needed, can stay","Room","Roommate","Partner","Rental in name"], ros.map(e=>{const c=carsFor(e)[0];return [e.name,isHR(e)?"Yes":"—",e.phone||"—",status(e).t,arrT(e),fDT(e.departAt)+(e.departBy==="escort"?" (self-reported)":""),!e.stayUntil?"—":e.stayUntil==="none"?"No":fD(e.stayUntil),e.roomId?roomLabel(S.rooms[e.roomId]):"—",roommateOf(e).map(x=>x.name).join(", ")||"—",partnerOf(e).map(x=>x.name).join(", ")||"—",c?(c.vehicle||"Yes"):(carNameT(e)||"—")]}));
+    table(["Escort","HR218","Phone","Status","Arrives","Departs","If needed, can stay","Room","Roommate","Partner","Rental in name"], ros.map(e=>{const c=carsFor(e)[0];return [e.name,isHR(e)?"Yes":"—",e.phone||"—",status(e).t,arrT(e),fDT(e.departAt)+(e.departBy==="escort"?" (self-reported)":""),!e.stayUntil?"—":e.stayUntil==="none"?"No":fD(e.stayUntil),e.roomId?roomLabel(S.rooms[e.roomId]):"—",roommateOf(e).map(x=>x.name).join(", ")||"—",partnerOf(e).map(x=>x.name).join(", ")||"—",hasRental(e)?"Yes":(carNameT(e)||"—")]}));
   }
   if($("#rp_lod").checked){
     section("Lodging");
     table(["Hotel","Room","Occupant 1","Occupant 2","Check-in","Check-out","Last serviced","Next service"], list("rooms").sort((a,b)=>roomLabel(a).localeCompare(roomLabel(b),undefined,{numeric:true})).map(r=>{const o=roomOcc(r.id), si=serviceInfo(r);return [r.hotel||"—",r.number||"—",o[0]?.name||"Open",o[1]?.name||"Open",fD(r.checkIn),coT(r),r.lastServiced?fD(r.lastServiced):"—",r.serviceHold?"On hold":si.due?fD(si.due)+(si.k==="over"?" (overdue)":""):"—"]}));
   }
   if($("#rp_veh").checked){
-    section("Rental vehicles");
-    table(["Vehicle","Color","Agency","Rented in name of","Partner","Pick-up","Return"], list("cars").map(c=>{const e=S.escorts[c.assignedTo];return [c.vehicle||"—",c.color||"—",c.agency||"—",e?.name||"Unassigned",e?partnerOf({id:c.assignedTo,...e}).map(x=>x.name).join(", ")||"—":"—",fDT(c.pickupAt),fDT(c.returnAt)]}));
+    section("Rental cars in escort's name");
+    table(["Escort","Team","Rental in their name"], escorts().filter(e=>!["can","out"].includes(status(e).k)).sort((x,y)=>(x.name||"").localeCompare(y.name||"")).map(e=>[e.name, e.teamId?teamLabel(S.teams[e.teamId]):"—", hasRental(e)?"Yes":(e.carInName&&e.carInName.has===false?"No":"Not answered")]));
   }
   if($("#rp_tm").checked){
     section("Partner teams");
@@ -1300,7 +1279,7 @@ function copyText(text, okMsg, markIds){
 }
 /* ---------- events ---------- */
 document.addEventListener("click", ev=>{
-  const t=ev.target.closest("[data-del-escort],[data-fd-copy],[data-car-from],[data-serviced],[data-wk-save],[data-wk-edit],[data-wk-open],[data-pool-edit],[data-pool-add],[data-wk],[data-invite],[data-mark-inv],[data-copy-all],[data-act],[data-edit-escort],[data-edit-room],[data-edit-car],[data-edit-team],[data-pick],[data-copy],[data-tab],[data-tab-go]");
+  const t=ev.target.closest("[data-del-escort],[data-fd-copy],[data-serviced],[data-wk-save],[data-wk-edit],[data-wk-open],[data-pool-edit],[data-pool-add],[data-wk],[data-invite],[data-mark-inv],[data-copy-all],[data-act],[data-edit-escort],[data-edit-room],[data-edit-car],[data-edit-team],[data-pick],[data-copy],[data-tab],[data-tab-go]");
   if(!t) return;
   if(t.matches("a")) ev.preventDefault();
   if(t.dataset.tab||t.dataset.tabGo){ tab=t.dataset.tab||t.dataset.tabGo; ls.set("njsb_tab",tab); return render(); }
@@ -1308,7 +1287,6 @@ document.addEventListener("click", ev=>{
     if(t.dataset.delEscort){ const id=t.dataset.delEscort; if(DEL_ARM!==id){ DEL_ARM=id; dirty=false; render(); setTimeout(()=>{ if(DEL_ARM===id){ DEL_ARM=""; render(); } },5000); return; } DEL_ARM=""; return removeEscort(id); }
     if(t.dataset.serviced) return markServiced(t.dataset.serviced);
     if(t.dataset.fdCopy) return copyText(frontDesk().text, "Front desk list copied", []);
-    if(t.dataset.carFrom){ const e=S.escorts[t.dataset.carFrom], c=carIn(e); return save("cars", uid("c"), {vehicle:c.vehicle||"", assignedTo:t.dataset.carFrom, color:"", agency:"", notes:"Reported by escort"}); }
     if(t.dataset.wkSave){ const f=t.dataset.wkSave, n=$("#wk_need_"+f).value, a=$("#wk_armed_"+f).value; if(n===""){ toast("Enter how many escorts are needed"); return; } dirty=false; return save("weeks", f, {needed:+n, hrNeeded:a===""?"":+a, notes:(S.weeks[f]||{}).notes||"", updatedAt:new Date().toISOString()}); }
     if(t.dataset.wkEdit) return editWeekNeed(t.dataset.wkEdit);
     if(t.dataset.wkOpen!==undefined){ weekOff=+t.dataset.wkOpen; tab="week"; return render(); }
@@ -1320,10 +1298,9 @@ document.addEventListener("click", ev=>{
     if(a==="newPool") return editPool();
     if(t.dataset.poolEdit) return editPool(t.dataset.poolEdit);
     if(t.dataset.poolAdd) return addFromPool(t.dataset.poolAdd);
-    if(a==="newEscort") return editEscort(); if(a==="newRoom") return editRoom(); if(a==="newCar") return editCar(); if(a==="newTeam") return editTeam();
+    if(a==="newEscort") return editEscort(); if(a==="newRoom") return editRoom(); if(a==="newTeam") return editTeam();
     if(t.dataset.editEscort) return editEscort(t.dataset.editEscort);
     if(t.dataset.editRoom) return editRoom(t.dataset.editRoom);
-    if(t.dataset.editCar) return editCar(t.dataset.editCar);
     if(t.dataset.editTeam) return editTeam(t.dataset.editTeam);
   }
   if(t.dataset.copy!==undefined){ const inp=$("#"+t.dataset.copy); const done=()=>toast("Link copied"); try{ navigator.clipboard.writeText(inp.value).then(done,()=>{inp.select();toast("Press Ctrl/Cmd+C to copy")}); }catch(e){ inp.select(); toast("Press Ctrl/Cmd+C to copy"); } return; }
