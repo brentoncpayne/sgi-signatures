@@ -224,7 +224,7 @@ const fD = s => s ? fDay(s.length===10? s+"T12:00": s) : "—";
 const dayKey = s => s ? s.slice(0,10) : "";
 
 const ymd = d => `${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())}`;
-function weekStartOf(date){ const ws=+(S.site.weekStart ?? 0); const d=new Date(date.getFullYear(),date.getMonth(),date.getDate()); d.setDate(d.getDate()-((d.getDay()-ws+7)%7)); return d; }
+function weekStartOf(date){ const ws=+(S.site.weekStart ?? 1); const d=new Date(date.getFullYear(),date.getMonth(),date.getDate()); d.setDate(d.getDate()-((d.getDay()-ws+7)%7)); return d; }
 function weekRange(off){ const s=weekStartOf(new Date()); s.setDate(s.getDate()+7*off); const e=new Date(s); e.setDate(e.getDate()+6); return {from:ymd(s),to:ymd(e)}; }
 const inWeek = (str,w) => { const k=dayKey(str); return !!k && k>=w.from && k<=w.to; };
 const stayT = e => !e.stayUntil ? "" : e.stayUntil==="none" ? "Can't extend" : `Can stay to ${fD(e.stayUntil)}`;
@@ -381,7 +381,7 @@ function rOverview(app){
   const today=new Date(); const tKey=`${today.getFullYear()}-${p2(today.getMonth()+1)}-${p2(today.getDate())}`;
   const upcoming=moves.filter(m=>dayKey(m.at)>=tKey);
   const byDay={}; upcoming.forEach(m=>(byDay[dayKey(m.at)]??=[]).push(m));
-  app.innerHTML=`${frontDeskHTML(true)}${extensionsHTML(true)}
+  app.innerHTML=`${leavingWeekHTML()}${frontDeskHTML(true)}${extensionsHTML(true)}
   <div class="stats">
     <div class="stat"><b>${es.length}</b><span>On roster</span></div>
     <div class="stat"><b>${on.length}</b><span>On site now</span></div>
@@ -752,6 +752,27 @@ async function markServiced(rid){ const d=todayYMD(), now=new Date().toISOString
   await patch("rooms", rid, {lastServiced:d, serviceNext:"", serviceLog:[...((S.rooms[rid]||{}).serviceLog||[]).slice(-29), d]});
   for(const e of roomOcc(rid)) if(openReq(e) && e.claimedBy){ try{ await db.collection("checkins").doc(e.claimedBy).update({svc:{...e.svc, doneAt:now}}); }catch(err){} }
   toast(`${roomLabel(S.rooms[rid])} marked serviced today`); }
+/* ---------- leaving this week (Mon–Sat) ---------- */
+function leavingWeekHTML(){
+  const w=weekRange(0), sat=addDays(w.from,5), t=todayYMD();
+  const es=escorts().filter(e=>!["can"].includes(status(e).k) && e.departAt && dayKey(e.departAt)>=w.from && dayKey(e.departAt)<=sat).sort((a,b)=>a.departAt.localeCompare(b.departAt));
+  const days=[]; for(let i=0;i<6;i++) days.push(addDays(w.from,i));
+  const noDate=escorts().filter(e=>status(e).k==="on" && !e.departAt);
+  return `<div class="panel"><div class="hd"><h3>Leaving this week</h3><span class="note mono">${fD(w.from)} – ${fD(sat)}</span><div class="spacer"></div><span class="pill ${es.length?"p-depart":"p-out"}">${es.length} leaving</span></div><div class="bd" style="display:grid;gap:10px">
+    ${es.length? days.filter(d=>es.some(e=>dayKey(e.departAt)===d)).map(d=>`<div><div class="row" style="gap:8px;margin-bottom:4px"><b>${fD(d)}</b>${d===t?'<span class="pill p-exp">Today</span>':d<t?'<span class="pill p-out">Done</span>':""}</div>
+      ${es.filter(e=>dayKey(e.departAt)===d).map(e=>`<div class="row" style="flex-wrap:wrap;gap:6px 12px;padding:6px 0;border-top:1px solid var(--line)">
+        <a href="#" data-edit-escort="${e.id}" style="color:inherit;font-weight:600;min-width:150px">${esc(e.name)}</a>
+        <span class="mono note">${fT(e.departAt)}</span>
+        <span class="note">${e.roomId?esc(roomLabel(S.rooms[e.roomId])):"No room"}</span>
+        ${e.teamId?`<span class="note">${esc(teamLabel(S.teams[e.teamId]))}</span>`:""}
+        ${hasRental(e)?'<span class="pill p-grp">Rental in name</span>':""}
+        ${e.stayUntil&&e.stayUntil!=="none"&&e.stayUntil>dayKey(e.departAt)?`<span class="pill p-on">Could stay to ${fD(e.stayUntil)}</span>`:e.stayUntil==="none"?'<span class="note">Can\'t extend</span>':""}
+      </div>`).join("")}</div>`).join("")
+      : `<p class="muted" style="margin:0">Nobody is scheduled to leave this week.</p>`}
+    ${noDate.length?`<p class="note" style="margin:0"><b>On site with no departure date:</b> ${esc(noDate.map(e=>e.name).join(", "))}</p>`:""}
+  </div></div>`;
+}
+
 /* ---------- room bookings: warn when escorts stay past the hotel check-out ---------- */
 function bookingCheck(r){
   const occ=escorts().filter(e=>e.roomId===r.id && !["can","out"].includes(status(e).k));
@@ -1031,7 +1052,7 @@ function rSettings(app){
     <label class="f">Period start<input type="date" id="s_periodStart" value="${esc(st.periodStart||"")}"></label>
     <label class="f">Period end<input type="date" id="s_periodEnd" value="${esc(st.periodEnd||"")}"></label>
     <label class="f">Room service every (days)<input type="number" min="0" id="s_serviceEvery" value="${esc(st.serviceEvery??7)}"></label>
-    <label class="f">SOC week starts on<select id="s_weekStart">${DAYS.map((d,i)=>opt(String(i),["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][i],String(st.weekStart??0)===String(i))).join("")}</select></label>
+    <label class="f">SOC week starts on<select id="s_weekStart">${DAYS.map((d,i)=>opt(String(i),["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][i],String(st.weekStart??1)===String(i))).join("")}</select></label>
   </div>
   <label class="f">Personal link address (leave blank to use this page's address)<input id="s_linkBase" placeholder="${esc(location.origin+location.pathname)}" value="${esc(st.linkBase||"")}"></label>
   <div class="fieldset-title">Report branding</div>
