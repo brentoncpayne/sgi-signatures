@@ -700,7 +700,7 @@ function rRooms(app){
     <div class="rcard ${occ.length>=2?"full":""}"><div class="top"><span class="nm">Rm ${esc(r.number||"?")}</span><span class="pill ${occ.length>=2?"p-on":occ.length?"p-exp":"p-out"}">${occ.length}/2</span><button class="btn sm" data-edit-room="${r.id}">Edit</button></div>
     ${roomBeds(r.id).map((e,i)=>`<div class="bed ${e?"":"open"}"><label for="bed_${r.id}_${i}">Escort ${i+1}</label><select id="bed_${r.id}_${i}" data-bed-room="${r.id}" data-bed-i="${i}">${bedOptions(r.id,e)}</select>${e?`<span class="note">${status(e).t}${e.departAt?" · out "+fDT(e.departAt):""}${e.phone?` · <span class="mono">${esc(e.phone)}</span>`:""}</span>`:""}</div>`).join("")}
     <div class="row" style="gap:6px">${svcPill(r)}</div>
-    <div class="note">${r.checkIn?`<span class="mono">${fD(r.checkIn)} → ${coT(r)}</span>`:""}${r.extendTo?` · <b>Extend through ${fD(r.extendTo)}</b>`:""}</div></div>`}).join("")}</div></div>`).join("")
+    <div class="note">${r.checkIn?`<span class="mono">${fD(r.checkIn)} → ${coT(r)}</span>`:""}${r.bookedUntil?` · Booked until <span class="mono">${fD(r.bookedUntil)}</span>`:""}${bookingCheck(r).k==="extend"?` <span class="pill p-flag">Extend</span>`:""}</div></div>`}).join("")}</div></div>`).join("")
     : `<div class="empty-state"><strong>No rooms added</strong><span>Add each hotel room. Every room holds two escorts; assign them from the room card or the escort's record.</span><button class="btn primary" data-act="newRoom">Add the first room</button></div>`}</div></div>`;
   bindDir();
   $("#svcPost").onclick=()=>{ const t=todayYMD(); const rs=list("rooms").filter(r=>{const si=serviceInfo(r);return ["over","today"].includes(si.k);});
@@ -752,22 +752,38 @@ async function markServiced(rid){ const d=todayYMD(), now=new Date().toISOString
   await patch("rooms", rid, {lastServiced:d, serviceNext:"", serviceLog:[...((S.rooms[rid]||{}).serviceLog||[]).slice(-29), d]});
   for(const e of roomOcc(rid)) if(openReq(e) && e.claimedBy){ try{ await db.collection("checkins").doc(e.claimedBy).update({svc:{...e.svc, doneAt:now}}); }catch(err){} }
   toast(`${roomLabel(S.rooms[rid])} marked serviced today`); }
-/* ---------- room extensions for SOC ---------- */
-const extRooms = () => list("rooms").filter(r=>r.extendTo).sort((a,b)=>a.extendTo.localeCompare(b.extendTo)||roomLabel(a).localeCompare(roomLabel(b),undefined,{numeric:true}));
+/* ---------- room bookings: warn when escorts stay past the hotel check-out ---------- */
+function bookingCheck(r){
+  const occ=escorts().filter(e=>e.roomId===r.id && !["can","out"].includes(status(e).k));
+  const bu=r.bookedUntil||"";
+  if(!occ.length) return {k:"empty", occ, bu};
+  if(!bu) return {k:"nodate", occ, bu, label:"Booked-until date not entered"};
+  const past=occ.filter(e=>e.departAt && dayKey(e.departAt)>bu).sort((a,b)=>b.departAt.localeCompare(a.departAt));
+  const unknown=occ.filter(e=>!e.departAt);
+  const daysLeft=Math.round((new Date(bu+"T12:00")-new Date(todayYMD()+"T12:00"))/864e5);
+  if(past.length) return {k:"extend", occ, bu, past, extendTo:dayKey(past[0].departAt), daysLeft, label: daysLeft<0?"Booking has ended":daysLeft===0?"Check-out today, extend now":`Extend, booking ends in ${daysLeft} day${daysLeft>1?"s":""}`};
+  if(unknown.length && daysLeft<=3) return {k:"ask", occ, bu, unknown, daysLeft, label:`Booking ends ${daysLeft<=0?"today":"in "+daysLeft+" day"+(daysLeft>1?"s":"")}; ${unknown.map(e=>e.name).join(" & ")} has no departure date`};
+  return {k:"ok", occ, bu, label:"Covered"};
+}
+const bookingRows = () => list("rooms").map(r=>({r, c:bookingCheck(r)})).filter(x=>x.c.k!=="empty");
+const extendRows = () => bookingRows().filter(x=>x.c.k==="extend").sort((a,b)=>a.c.bu.localeCompare(b.c.bu));
 function extensionsHTML(compact){
-  const xs=extRooms(), all=list("rooms").filter(r=>roomOcc(r.id).some(e=>status(e).k!=="out")).sort((a,b)=>roomLabel(a).localeCompare(roomLabel(b),undefined,{numeric:true}));
-  if(compact && !xs.length) return "";
-  return `<div class="panel"><div class="hd"><h3>Room extensions for SOC</h3><span class="note">${xs.length?`${xs.length} room${xs.length>1?"s":""} to extend`:"Ask the front desk, then enter the date"}</span><div class="spacer"></div>${xs.length?`<button class="btn sm" data-ext-copy="1">Copy for SOC</button>`:""}${compact?`<button class="btn sm" data-tab-go="rooms">Hotel rooms</button>`:""}</div><div class="bd">
-    ${compact? xs.map(r=>`<div class="row"><b class="mono">Rm ${esc(r.number||"?")}</b><span>${esc(r.hotel||"")}</span><span>extend through <b>${fD(r.extendTo)}</b></span><span class="note">${esc(roomOcc(r.id).map(e=>e.name).join(" & "))}</span></div>`).join("")
-    : all.length? `<div class="tbl-wrap"><table><thead><tr><th>Room</th><th>Escorts</th><th>Extend through</th><th></th></tr></thead><tbody>
-      ${all.map(r=>`<tr><td><b>${esc(roomLabel(r))}</b></td><td class="note">${esc(roomOcc(r.id).filter(e=>status(e).k!=="out").map(e=>e.name).join(" & "))}</td>
-        <td><input type="date" data-ext-date="${r.id}" value="${esc(r.extendTo||"")}" aria-label="Extend ${esc(roomLabel(r))} through" style="max-width:180px"></td>
-        <td>${r.extendTo?`<button class="btn sm" data-ext-clear="${r.id}">Clear</button>`:""}</td></tr>`).join("")}
-      </tbody></table></div>` : `<p class="muted" style="margin:0">No occupied rooms yet.</p>`}
+  const rows=bookingRows(), warn=rows.filter(x=>["extend","ask"].includes(x.c.k)), ext=extendRows();
+  if(compact && !warn.length) return "";
+  const cls={extend:"p-flag",ask:"p-exp",nodate:"p-grp",ok:"p-on"};
+  const shown=(compact?warn:rows).sort((a,b)=>({extend:0,ask:1,nodate:2,ok:3}[a.c.k]-{extend:0,ask:1,nodate:2,ok:3}[b.c.k]) || roomLabel(a.r).localeCompare(roomLabel(b.r),undefined,{numeric:true}));
+  return `<div class="panel"><div class="hd"><h3>Room bookings</h3><span class="note">${ext.length?`<b>${ext.length} room${ext.length>1?"s":""} ${ext.length>1?"need":"needs"} extending</b>`:warn.length?"Check with escorts":"All rooms covered"}</span><div class="spacer"></div>${ext.length?`<button class="btn sm" data-ext-copy="1">Copy for SOC</button>`:""}${compact?`<button class="btn sm" data-tab-go="rooms">Hotel rooms</button>`:""}</div><div class="bd">
+    ${shown.length?`<div class="tbl-wrap"><table><thead><tr><th>Room</th><th>Escorts leaving</th><th>Booked until</th><th>Status</th></tr></thead><tbody>
+    ${shown.map(({r,c})=>`<tr><td><b>${esc(roomLabel(r))}</b></td>
+      <td class="note">${c.occ.map(e=>`${esc(e.name)} · ${e.departAt?fD(dayKey(e.departAt)):"no date"}`).join("<br>")}</td>
+      <td>${compact?(c.bu?fD(c.bu):"—"):`<input type="date" data-bk-date="${r.id}" value="${esc(c.bu)}" aria-label="${esc(roomLabel(r))} booked until" style="max-width:170px">`}</td>
+      <td><span class="pill ${cls[c.k]}">${esc(c.label)}</span>${c.k==="extend"?`<div class="note">Extend to ${fD(c.extendTo)} for ${esc(c.past.map(e=>e.name).join(" & "))}</div>`:""}</td></tr>`).join("")}
+    </tbody></table></div>`:`<p class="muted" style="margin:0">No occupied rooms yet.</p>`}
+    ${compact?"":`<p class="note" style="margin:8px 0 0">Enter the check-out date the front desk gives you. When you extend a room, just change the date.</p>`}
   </div></div>`;
 }
-function extensionsText(){ const xs=extRooms(); const hs=[...new Set(xs.map(r=>r.hotel||"Hotel"))];
-  return `ROOM EXTENSIONS — ${S.site.siteName||"New Jersey"} site, ${fD(todayYMD())}\n`+hs.map(h=>`${h}\n`+xs.filter(r=>(r.hotel||"Hotel")===h).map(r=>`Rm ${r.number} — extend through ${fD(r.extendTo)} (${roomOcc(r.id).map(e=>e.name).join(" & ")})`).join("\n")).join("\n\n"); }
+function extensionsText(){ const xs=extendRows(); const hs=[...new Set(xs.map(x=>x.r.hotel||"Hotel"))];
+  return `ROOM EXTENSIONS NEEDED — ${S.site.siteName||"New Jersey"} site, ${fD(todayYMD())}\n`+hs.map(h=>`${h}\n`+xs.filter(x=>(x.r.hotel||"Hotel")===h).map(x=>`Rm ${x.r.number} — booked until ${fD(x.c.bu)}, extend to ${fD(x.c.extendTo)} (${x.c.past.map(e=>e.name).join(" & ")})`).join("\n")).join("\n\n"); }
 
 /* ---------- front desk list (today's room service) ---------- */
 function frontDesk(){
@@ -1119,15 +1135,15 @@ function editRoom(id){
     <div class="fg"><label class="f">Hotel<input id="m_hotel" value="${esc(r.hotel||"")}" placeholder="e.g. Courtyard Newark Airport"></label>
     <label class="f">Room #<input id="m_number" value="${esc(r.number||"")}"></label>
     <label class="f">Check-in<input type="date" id="m_ci" value="${esc(r.checkIn||"")}"></label>
-    <label class="f">Extend through (for SOC)<input type="date" id="m_bk" value="${esc(r.extendTo||"")}"></label></div>
-    <p class="note" style="margin:0">Fill in "Extend through" when the front desk says the room needs extending. It goes on the extension list for SOC.</p>
+    <label class="f">Booked until (hotel check-out)<input type="date" id="m_bk" value="${esc(r.bookedUntil||"")}"></label></div>
+    <p class="note" style="margin:0">Ask the front desk for the room's check-out date. The board warns you when an escort is staying past it.</p>
     <div class="fieldset-title">Escorts assigned (2 per room)</div>
     <div class="fg"><label class="f">Escort 1${slotSel(0)}</label><label class="f">Escort 2${slotSel(1)}</label></div>
     <label class="f">Notes<textarea id="m_notes">${esc(r.notes||"")}</textarea></label>`,
   async()=>{
     if(!v("m_hotel")||!v("m_number")){ toast("Enter the hotel and room number"); return false; }
     const a=v("m_occ0"), b=v("m_occ1"); if(a&&a===b){ toast("Pick two different escorts"); return false; }
-    await save("rooms", r.id, {...(S.rooms[r.id]||{}), hotel:v("m_hotel"),number:v("m_number"),checkIn:v("m_ci"),extendTo:v("m_bk"),notes:v("m_notes")});
+    await save("rooms", r.id, {...(S.rooms[r.id]||{}), hotel:v("m_hotel"),number:v("m_number"),checkIn:v("m_ci"),bookedUntil:v("m_bk"),notes:v("m_notes")});
     for(const o of occ) if(o && o.id!==a&&o.id!==b) await patch("escorts",o.id,{roomId:"",bed:null});
     for(const [i,x] of [a,b].entries()) if(x && (S.escorts[x]?.roomId!==r.id || S.escorts[x]?.bed!==i+1)) await patch("escorts",x,{roomId:r.id,bed:i+1});
   },
@@ -1305,13 +1321,13 @@ async function exportPDF(){
     section("Personnel roster");
     table(["Escort","HR218","Phone","Status","Arrives","Departs","If needed, can stay","Room","Roommate","Partner","Rental in name"], ros.map(e=>{const c=carsFor(e)[0];return [e.name,isHR(e)?"Yes":"—",e.phone||"—",status(e).t,arrT(e),fDT(e.departAt)+(e.departBy==="escort"?" (self-reported)":""),!e.stayUntil?"—":e.stayUntil==="none"?"No":fD(e.stayUntil),e.roomId?roomLabel(S.rooms[e.roomId]):"—",roommateOf(e).map(x=>x.name).join(", ")||"—",partnerOf(e).map(x=>x.name).join(", ")||"—",hasRental(e)?"Yes":(carNameT(e)||"—")]}));
   }
-  if($("#rp_lod").checked && extRooms().length){
+  if($("#rp_lod").checked && extendRows().length){
     section("Room extensions needed");
-    table(["Hotel","Room","Extend through","Escorts"], extRooms().map(r=>[r.hotel||"—", r.number||"—", fD(r.extendTo), roomOcc(r.id).map(e=>e.name).join(" & ")||"—"]));
+    table(["Hotel","Room","Booked until","Extend to","Escorts staying"], extendRows().map(x=>[x.r.hotel||"—", x.r.number||"—", fD(x.c.bu), fD(x.c.extendTo), x.c.past.map(e=>e.name).join(" & ")]));
   }
   if($("#rp_lod").checked){
     section("Lodging");
-    table(["Hotel","Room","Occupant 1","Occupant 2","Check-in","Check-out","Extend through","Last serviced","Next service"], list("rooms").sort((a,b)=>roomLabel(a).localeCompare(roomLabel(b),undefined,{numeric:true})).map(r=>{const o=roomOcc(r.id), si=serviceInfo(r);return [r.hotel||"—",r.number||"—",o[0]?.name||"Open",o[1]?.name||"Open",fD(r.checkIn),coT(r),r.extendTo?fD(r.extendTo):"—",r.lastServiced?fD(r.lastServiced):"—",r.serviceHold?"On hold":si.due?fD(si.due)+(si.k==="over"?" (overdue)":""):"—"]}));
+    table(["Hotel","Room","Occupant 1","Occupant 2","Check-in","Booked until","Last serviced","Next service"], list("rooms").sort((a,b)=>roomLabel(a).localeCompare(roomLabel(b),undefined,{numeric:true})).map(r=>{const o=roomOcc(r.id), si=serviceInfo(r);return [r.hotel||"—",r.number||"—",o[0]?.name||"Open",o[1]?.name||"Open",fD(r.checkIn),r.bookedUntil?fD(r.bookedUntil):"—",r.lastServiced?fD(r.lastServiced):"—",r.serviceHold?"On hold":si.due?fD(si.due)+(si.k==="over"?" (overdue)":""):"—"]}));
   }
   if($("#rp_veh").checked){
     section("Rental cars in escort's name");
@@ -1341,16 +1357,15 @@ function copyText(text, okMsg, markIds){
   try{ navigator.clipboard.writeText(text).then(()=>{ mark(); toast(okMsg); }, fallback); }catch(e){ fallback(); }
 }
 /* ---------- events ---------- */
-document.addEventListener("change", ev=>{ const d=ev.target.closest("[data-ext-date]"); if(!d) return; dirty=false; const rid=d.dataset.extDate; patch("rooms", rid, {extendTo:d.value}).then(()=>toast(d.value?`${roomLabel(S.rooms[rid])}: extend through ${fD(d.value)}`:`${roomLabel(S.rooms[rid])}: extension cleared`)); });
+document.addEventListener("change", ev=>{ const d=ev.target.closest("[data-bk-date]"); if(!d) return; dirty=false; const rid=d.dataset.bkDate; patch("rooms", rid, {bookedUntil:d.value}).then(()=>toast(d.value?`${roomLabel(S.rooms[rid])}: booked until ${fD(d.value)}`:`${roomLabel(S.rooms[rid])}: date cleared`)); });
 document.addEventListener("click", ev=>{
   const tx=ev.target.closest("[data-texted]"); if(tx){ const id=tx.dataset.texted; if(!R.escorts[id]?.invitedAt) patch("escorts", id, {invitedAt:new Date().toISOString()}); toast("Opening Messages…"); return; }
-  const t=ev.target.closest("[data-ext-clear],[data-ext-copy],[data-del-escort],[data-fd-copy],[data-serviced],[data-wk-save],[data-wk-edit],[data-wk-open],[data-pool-edit],[data-pool-add],[data-wk],[data-invite],[data-mark-inv],[data-copy-all],[data-act],[data-edit-escort],[data-edit-room],[data-edit-car],[data-edit-team],[data-pick],[data-copy],[data-tab],[data-tab-go]");
+  const t=ev.target.closest("[data-ext-copy],[data-del-escort],[data-fd-copy],[data-serviced],[data-wk-save],[data-wk-edit],[data-wk-open],[data-pool-edit],[data-pool-add],[data-wk],[data-invite],[data-mark-inv],[data-copy-all],[data-act],[data-edit-escort],[data-edit-room],[data-edit-car],[data-edit-team],[data-pick],[data-copy],[data-tab],[data-tab-go]");
   if(!t) return;
   if(t.matches("a")) ev.preventDefault();
   if(t.dataset.tab||t.dataset.tabGo){ tab=t.dataset.tab||t.dataset.tabGo; ls.set("njsb_tab",tab); return render(); }
   if(viewMode==="admin"){
     if(t.dataset.delEscort){ const id=t.dataset.delEscort; if(DEL_ARM!==id){ DEL_ARM=id; dirty=false; render(); setTimeout(()=>{ if(DEL_ARM===id){ DEL_ARM=""; render(); } },5000); return; } DEL_ARM=""; return removeEscort(id); }
-    if(t.dataset.extClear){ const rid=t.dataset.extClear; return patch("rooms", rid, {extendTo:""}).then(()=>toast(`${roomLabel(S.rooms[rid])}: extension cleared`)); }
     if(t.dataset.extCopy) return copyText(extensionsText(), "Extension list copied", []);
     if(t.dataset.serviced) return markServiced(t.dataset.serviced);
     if(t.dataset.fdCopy) return copyText(frontDesk().text, "Front desk list copied", []);
