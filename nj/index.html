@@ -225,7 +225,7 @@ const dayKey = s => s ? s.slice(0,10) : "";
 
 const ymd = d => `${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())}`;
 function weekStartOf(date){ const ws=+(S.site.weekStart ?? 1); const d=new Date(date.getFullYear(),date.getMonth(),date.getDate()); d.setDate(d.getDate()-((d.getDay()-ws+7)%7)); return d; }
-function weekRange(off){ const s=weekStartOf(new Date()); s.setDate(s.getDate()+7*off); const e=new Date(s); e.setDate(e.getDate()+6); return {from:ymd(s),to:ymd(e)}; }
+function weekRange(off){ const s=weekStartOf(new Date()); s.setDate(s.getDate()+7*off); const e=new Date(s); e.setDate(e.getDate()+(+(S.site.weekStart ?? 1)===1?5:6)); return {from:ymd(s),to:ymd(e)}; }
 const inWeek = (str,w) => { const k=dayKey(str); return !!k && k>=w.from && k<=w.to; };
 const stayT = e => !e.stayUntil ? "" : e.stayUntil==="none" ? "Can't extend" : `Can stay to ${fD(e.stayUntil)}`;
 const hasRental = e => !!(e && (carsFor(e).length || carIn(e)));
@@ -252,7 +252,7 @@ const hrPill = e => isHR(e) ? '<span class="pill p-grp" style="margin-left:6px">
 function weekPlan(w){
   const es=escorts().filter(e=>status(e).k!=="can");
   const startTs=w.from+"T00:00", endTs=w.to+"T23:59";
-  const presentAtStart=e=> e.arriveAt && e.arriveAt<startTs && (!e.departAt || e.departAt>=startTs) && e.state!=="departed";
+  const presentAtStart=e=> e.state!=="departed" && (!e.departAt || e.departAt>=startTs) && ((e.arriveAt && e.arriveAt<startTs) || (!e.arriveAt && (e.state==="arrived" || status(e).k==="on")));
   const staying=es.filter(e=>presentAtStart(e) && (!e.departAt || e.departAt>endTs));
   const leaving=es.filter(e=>presentAtStart(e) && e.departAt && e.departAt>=startTs && e.departAt<=endTs);
   const arriving=es.filter(e=>inWeek(e.arriveAt,w));
@@ -260,10 +260,10 @@ function weekPlan(w){
   const req=S.weeks[w.from]||{};
   const needed= req.needed===undefined||req.needed===""? null : +req.needed;
   const hrNeeded= req.hrNeeded===undefined||req.hrNeeded===""? null : +req.hrNeeded;
-  const covered=staying.length+arriving.length;
+  const covered=staying.length+leaving.length+arriving.length;
   const open= needed==null? null : Math.max(0, needed-covered);
   const over= needed==null? 0 : Math.max(0, covered-needed);
-  const hrCovered=[...staying,...arriving].filter(isHR).length;
+  const hrCovered=[...staying,...leaving,...arriving].filter(isHR).length;
   const canExtend=leaving.filter(e=>e.stayUntil && e.stayUntil!=="none" && e.stayUntil>w.to);
   return {req,needed,hrNeeded,staying,leaving,arriving,arrLeaving,covered,open,over,hrCovered,canExtend};
 }
@@ -281,7 +281,7 @@ function planHTML(w, compact){
       <div class="stat"><b>${p.arriving.length}</b><span>Arriving / booked</span></div>
       <div class="stat ${gapCls}"><b>${p.needed==null?"—":p.open>0?p.open:(p.over?"+"+p.over:"0")}</b><span>${p.needed==null?"Still needed":p.open>0?"Still needed":p.over?"Over the need":"Fully staffed"}</span></div>
     </div>
-    ${p.needed!=null&&!compact?`<div class="row note"><span>${p.covered} working this week (${p.staying.length} staying + ${p.arriving.length} arriving) against ${p.needed} needed.</span><span>· HR218 working: <b>${p.hrCovered}</b>${p.hrNeeded!=null?` of ${p.hrNeeded}${p.hrCovered<p.hrNeeded?` — <b>${p.hrNeeded-p.hrCovered} more HR218 needed</b>`:""}`:""}</span>${p.leaving.length?`<span>· ${p.leaving.length} leaving mid-week${p.canExtend.length?`, <b>${p.canExtend.length} could stay longer</b> (${esc(p.canExtend.map(e=>e.name).join(", "))})`:""}.</span>`:""}<button class="btn sm" data-wk-edit="${w.from}">Change need</button></div>`:""}`;
+    ${p.needed!=null&&!compact?`<div class="row note"><span>${p.covered} working this week (${p.staying.length} staying + ${p.leaving.length} leaving during the week + ${p.arriving.length} arriving) against ${p.needed} needed.</span><span>· HR218 working: <b>${p.hrCovered}</b>${p.hrNeeded!=null?` of ${p.hrNeeded}${p.hrCovered<p.hrNeeded?` — <b>${p.hrNeeded-p.hrCovered} more HR218 needed</b>`:""}`:""}</span>${p.leaving.length?`<span>· ${p.leaving.length} leaving mid-week${p.canExtend.length?`, <b>${p.canExtend.length} could stay longer</b> (${esc(p.canExtend.map(e=>e.name).join(", "))})`:""}.</span>`:""}<button class="btn sm" data-wk-edit="${w.from}">Change need</button></div>`:""}`;
 }
 function editWeekNeed(from){
   const r=S.weeks[from]||{};
@@ -1067,7 +1067,7 @@ function rSettings(app){
   </div></div>`;
   $("#s_save").onclick=async()=>{
     const f=k=>$("#s_"+k).value.trim();
-    await patchSite({siteName:f("siteName"),siteLead:f("siteLead"),siteLeadTitle:f("siteLeadTitle"),periodStart:f("periodStart"),periodEnd:f("periodEnd"),linkBase:(f("linkBase")&&!/^https?:\/\//.test(f("linkBase"))?"https://":"")+f("linkBase"),companyName:f("companyName"),client:f("client"),brandColor:$("#s_brandColor").value,weekStart:+$("#s_weekStart").value,serviceEvery:+($("#s_serviceEvery").value||0)});
+    await patchSite({siteName:f("siteName"),siteLead:f("siteLead"),siteLeadTitle:f("siteLeadTitle"),periodStart:f("periodStart"),periodEnd:f("periodEnd"),linkBase:(f("linkBase")&&!/^https?:\/\//.test(f("linkBase"))?"https://":"")+f("linkBase"),companyName:f("companyName"),client:f("client"),brandColor:$("#s_brandColor").value,weekStart:+$("#s_weekStart").value,weekStartSet:true,serviceEvery:+($("#s_serviceEvery").value||0)});
   };
   $("#s_signout").onclick=async()=>{ await window.__sb.auth.signOut(); location.hash=""; location.reload(); };
   $("#s_logo").onchange=async ev=>{ const file=ev.target.files[0]; if(!file) return; const url=await shrink(file); if(url) patchSite({logo:url}); };
@@ -1544,6 +1544,7 @@ function loginScreen(sb, msg, mode){
   wireStore(); db.live();
   /* every escort needs a secret link token */
   for(const [id,e] of Object.entries(R.escorts)) if(!e.token) patch("escorts", id, {token:newToken()});
+  if(!S.site.weekStartSet){ db.doc("config/site").set({...S.site, weekStart:1, weekStartSet:true}).catch(()=>{}); }
   render();
   setInterval(()=>{ if(!busy() && !document.activeElement?.matches("input,textarea,select")) render(); }, 60000);
 })();
