@@ -1351,8 +1351,8 @@ async function exportPDF(){
     section("Summary");
     const arr=all.filter(e=>inRange(e.arriveAt)).length, dep=all.filter(e=>inRange(e.departAt)).length;
     const rooms=list("rooms"), cars=list("cars"), teams=list("teams");
-    table(["Personnel in period","Arrivals","Departures","On site now","Hotel rooms","Beds filled","Rental cars","Partner teams"],
-      [[ros.length,arr,dep,all.filter(e=>status(e).k==="on").length,rooms.length,`${rooms.reduce((n,r)=>n+roomOcc(r.id).length,0)} / ${rooms.length*2}`,cars.length,teams.length]],{styles:{...tableBase.styles,fontSize:10,halign:"center"}});
+    table(["Personnel in period","Arrivals","Departures","On site now","Hotel rooms","Beds filled","Rentals in escort name","Partner teams"],
+      [[ros.length,arr,dep,all.filter(e=>status(e).k==="on").length,rooms.length,`${rooms.reduce((n,r)=>n+roomOcc(r.id).length,0)} / ${rooms.length*2}`,all.filter(e=>status(e).k!=="out"&&hasRental(e)).length,teams.length]],{styles:{...tableBase.styles,fontSize:10,halign:"center"}});
     if(notes){ doc.setFont("helvetica","bold"); doc.setFontSize(9); doc.text("Site lead remarks",M,y); y+=12; doc.setFont("helvetica","normal"); const ln=doc.splitTextToSize(notes,W-2*M); doc.text(ln,M,y); y+=ln.length*11+14; }
   }
   if($("#rp_picks").checked){
