@@ -381,7 +381,7 @@ function rOverview(app){
   const today=new Date(); const tKey=`${today.getFullYear()}-${p2(today.getMonth()+1)}-${p2(today.getDate())}`;
   const upcoming=moves.filter(m=>dayKey(m.at)>=tKey);
   const byDay={}; upcoming.forEach(m=>(byDay[dayKey(m.at)]??=[]).push(m));
-  app.innerHTML=`${leavingWeekHTML()}${frontDeskHTML(true)}${extensionsHTML(true)}
+  app.innerHTML=`${leavingWeekHTML()}${picksHTML()}${frontDeskHTML(true)}${extensionsHTML(true)}
   <div class="stats">
     <div class="stat"><b>${es.length}</b><span>On roster</span></div>
     <div class="stat"><b>${on.length}</b><span>On site now</span></div>
@@ -1056,7 +1056,7 @@ function rReport(app){
       <label class="f">To<input type="date" id="rpTo" value="${esc(st.periodEnd||"")}"></label>
     </div>
     <div style="display:grid;gap:6px">
-      ${[["sum","Summary"],["wk","On site now & coming next week"],["mov","Arrivals & departures"],["ros","Full roster"],["lod","Lodging (rooms)"],["veh","Rental cars"],["tm","Partner teams"]].map(([k,l])=>`<label class="check"><input type="checkbox" id="rp_${k}" checked> ${l}</label>`).join("")}
+      ${[["sum","Summary"],["picks","Site Lead Picks (next week)"],["wk","On site now & coming next week"],["mov","Arrivals & departures"],["ros","Full roster"],["lod","Lodging (rooms)"],["veh","Rental cars"],["tm","Partner teams"]].map(([k,l])=>`<label class="check"><input type="checkbox" id="rp_${k}" checked> ${l}</label>`).join("")}
     </div>
     <label class="f">Remarks for SOC (optional)<textarea id="rpNotes" placeholder="Anything SOC should know about this period">${esc(st.reportNotes||"")}</textarea></label>
     <div class="row"><button class="btn primary" id="rpGo">Export PDF</button><span class="note" id="rpMsg"></span></div>
@@ -1355,14 +1355,18 @@ async function exportPDF(){
       [[ros.length,arr,dep,all.filter(e=>status(e).k==="on").length,rooms.length,`${rooms.reduce((n,r)=>n+roomOcc(r.id).length,0)} / ${rooms.length*2}`,cars.length,teams.length]],{styles:{...tableBase.styles,fontSize:10,halign:"center"}});
     if(notes){ doc.setFont("helvetica","bold"); doc.setFontSize(9); doc.text("Site lead remarks",M,y); y+=12; doc.setFont("helvetica","normal"); const ln=doc.splitTextToSize(notes,W-2*M); doc.text(ln,M,y); y+=ln.length*11+14; }
   }
+  if($("#rp_picks").checked){
+    const nw=weekRange(1), ps=picksFor(nw.from);
+    section(`Site Lead Picks · week of ${fD(nw.from)} – ${fD(nw.to)}`);
+    doc.setFont("helvetica","italic"); doc.setFontSize(8.5); doc.setTextColor(90,104,120); doc.text("Site lead's requested escorts for next week, in order of preference. Wish list only; final staffing is SOC's decision.",M,y); y+=12; doc.setTextColor(20,32,46);
+    table(["#","Escort","Phone","HR218","Site lead note","Status"], ps.map((p,i)=>[i+1,p.name,p.phone||"—",p.hr218?"Yes":"—",p.note||"—",pickOnRoster(p,nw)?"On roster":"Waiting on SOC"]));
+  }
   if($("#rp_wk").checked){
     const nw=weekRange(1);
     section("Staffing plan");
     table(["Week","Needed","HR218 needed","HR218 working","Staying all week","Leaving this week","Arriving / booked","Still needed"], [0,1].map(o=>{const w=weekRange(o), p=weekPlan(w); return [`${fD(w.from)} – ${fD(w.to)}`, p.needed??"Not set", p.hrNeeded??"—", p.hrCovered, p.staying.length, p.leaving.length, p.arriving.length, p.needed==null?"—":p.open>0?p.open:(p.over?`0 (+${p.over} over)`:"0")];}), {styles:{...tableBase.styles,halign:"center"}});
     section("On site now");
     table(["Escort","Phone","Arrived","Expected departure","Room","Partner"], all.filter(e=>status(e).k==="on").map(e=>[e.name,e.phone||"—",arrT(e),fDT(e.departAt)+(e.departBy==="escort"?" (self-reported)":""),e.roomId?roomLabel(S.rooms[e.roomId]):"Unassigned",partnerOf(e).map(x=>x.name).join(", ")||"Unassigned"]));
-    if(picksFor(nw.from).length){ section(`Site Lead Picks · week of ${fD(nw.from)} (wish list, SOC decides)`);
-      table(["#","Escort","Phone","HR218","Note","Status"], picksFor(nw.from).map((p,i)=>[i+1,p.name,p.phone||"—",p.hr218?"Yes":"—",p.note||"—",pickOnRoster(p,nw)?"On roster":"Waiting on SOC"])); }
     section(`Coming next week · ${fD(nw.from)} – ${fD(nw.to)}`);
     table(["Escort","Phone","Arrives","Room","Partner","Rental car"], all.filter(e=>inWeek(e.arriveAt,nw)).map(e=>{const c=carsFor(e)[0];return [e.name,e.phone||"—",arrT(e),e.roomId?roomLabel(S.rooms[e.roomId]):"To be assigned",partnerOf(e).map(x=>x.name).join(", ")||"To be assigned",hasRental(e)?"Yes":"—"]}));
   }
