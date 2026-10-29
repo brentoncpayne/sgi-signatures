@@ -432,6 +432,7 @@ function rWeek(app){
   const notInv=arr.filter(e=>inviteState(e).k==="flag"); const plan=weekPlan(w);
   app.innerHTML=`
   <div class="panel"><div class="bd wkbar"><button class="btn sm" data-wk="-1" aria-label="Previous week">◀</button><span class="lbl">${label}</span><span class="mono muted">${fD(w.from)} – ${fD(w.to)}</span><button class="btn sm" data-wk="1" aria-label="Next week">▶</button>${weekOff!==1?`<button class="btn sm" data-wk="reset">Next week</button>`:""}</div></div>
+  ${weekOff===1?picksHTML():""}
   <div class="panel"><div class="hd"><h3>Staffing plan</h3>${plan.req.notes?`<span class="note">${esc(plan.req.notes)}</span>`:""}<div class="spacer"></div>${plan.open>0?`<button class="btn sm primary" data-tab-go="pool">Fill ${plan.open} from staffing pool</button>`:""}${notInv.length?`<span class="pill p-flag">${notInv.length} to invite</span>`:""}</div><div class="bd" style="display:grid;gap:12px">${planHTML(w)}</div></div>
   <div class="grid2">
     <div class="panel"><div class="hd"><h3>Staying all week</h3><span class="note">${plan.staying.length}</span></div><div class="bd">
@@ -509,6 +510,38 @@ function parseList(text, defDate){
   return out;
 }
 
+/* ---------- Site Lead Picks (wish list for SOC) ---------- */
+const picksWeek = () => weekRange(1).from;
+const picksFor = from => (S.weeks[from]?.picks||[]);
+function pickOnRoster(p, w){ const d=digits(p.phone), n=(p.name||"").trim().toLowerCase();
+  return escorts().find(e=>!["can"].includes(status(e).k) && ((d && digits(e.phone)===d) || (n && (e.name||"").trim().toLowerCase()===n)) && (inWeek(e.arriveAt,w) || weekPlan(w).staying.some(x=>x.id===e.id))); }
+async function savePicks(from, picks){ const cur=S.weeks[from]||{}; await save("weeks", from, {...cur, picks, picksUpdatedAt:new Date().toISOString()}); }
+async function togglePick(poolId){
+  const from=picksWeek(), picks=[...picksFor(from)], i=picks.findIndex(x=>x.poolId===poolId);
+  if(i>=0){ picks.splice(i,1); await savePicks(from,picks); toast("Removed from Site Lead Picks"); return; }
+  const p=S.pool[poolId]; if(!p) return;
+  picks.push({poolId, name:p.name||fmtPhone(p.phone), phone:fmtPhone(p.phone), hr218:(p.groups||[]).includes("HR218"), note:"", at:new Date().toISOString()});
+  await savePicks(from,picks); toast(`${p.name||"Pick"} added to Site Lead Picks`);
+}
+function picksText(from){
+  const w={from, to:weekRange(1).to}, ps=picksFor(from), st=S.site;
+  return `SITE LEAD PICKS — ${st.siteName||"New Jersey"} site, week of ${fD(from)}\nRequested by ${st.siteLead||"site lead"}. Wish list only; final staffing is SOC's call.\n`+
+    ps.map((p,i)=>`${i+1}. ${p.name}${p.phone?` (${p.phone})`:""}${p.hr218?" · HR218":""}${p.note?` — ${p.note}`:""}`).join("\n");
+}
+function picksHTML(){
+  const from=picksWeek(), w=weekRange(1), ps=picksFor(from), plan=weekPlan(w);
+  return `<div class="panel"><div class="hd"><h3>Site Lead Picks · week of ${fD(from)}</h3><span class="note">Your wish list for SOC. SOC makes the final call.</span><div class="spacer"></div>${ps.length?`<button class="btn sm" data-picks-copy="1">Copy for SOC</button>`:""}<button class="btn sm" data-tab-go="pool">Add from staffing pool</button></div><div class="bd" style="display:grid;gap:10px">
+    ${ps.length?`<div class="tbl-wrap"><table><thead><tr><th>#</th><th>Escort</th><th>Note for SOC</th><th>SOC decision</th><th></th></tr></thead><tbody>
+    ${ps.map((p,i)=>{ const on=pickOnRoster(p,w); return `<tr><td class="mono">${i+1}</td><td><b>${esc(p.name)}</b>${p.hr218?'<span class="pill p-grp" style="margin-left:6px">HR218</span>':""}${p.phone?`<div class="note mono">${esc(p.phone)}</div>`:""}</td>
+      <td><input data-pick-note="${i}" value="${esc(p.note||"")}" placeholder="e.g. Knows the post, good with new guys" aria-label="Note for ${esc(p.name)}"></td>
+      <td>${on?'<span class="pill p-on">On the roster</span>':'<span class="pill p-exp">Waiting on SOC</span>'}</td>
+      <td style="white-space:nowrap"><button class="btn sm" data-pick-move="${i}:-1" ${i===0?"disabled":""} aria-label="Move up">▲</button> <button class="btn sm" data-pick-move="${i}:1" ${i===ps.length-1?"disabled":""} aria-label="Move down">▼</button> <button class="btn sm danger" data-pick-del="${i}">Remove</button></td></tr>`; }).join("")}
+    </tbody></table></div>
+    <p class="note" style="margin:0">${ps.filter(p=>pickOnRoster(p,w)).length} of ${ps.length} picks are on next week's roster.${plan.needed!=null?` SOC needs ${plan.needed} next week; ${plan.open>0?`${plan.open} still open.`:"fully staffed."}`:""}</p>`
+    : `<p class="muted" style="margin:0">No picks yet. On the Staffing pool tab, tap ☆ beside the escorts you'd like back next week.</p>`}
+  </div></div>`;
+}
+
 /* ---------- ADMIN: staffing pool ---------- */
 function fmtPhone(v){
   let d=String(v||"").replace(/\D/g,""); if(d.length===11&&d[0]==="1") d=d.slice(1); d=d.slice(0,10);
@@ -534,7 +567,7 @@ function rPool(app){
     if(q && !((p.name||"").toLowerCase().includes(q) || (qd.length>=3 && digits(p.phone).includes(qd)) || (p.notes||"").toLowerCase().includes(q))) return false;
     return true; });
   const selN=[...P.sel].filter(id=>S.pool[id]).length;
-  app.innerHTML=`<div class="panel"><div class="hd"><h2>Staffing pool</h2><span class="muted">${all.length} people · ${rows.length} shown</span><div class="spacer"></div><button class="btn" data-act="newPool">Add person</button></div>
+  app.innerHTML=`${picksHTML()}<div class="panel"><div class="hd"><h2>Staffing pool</h2><span class="muted">${all.length} people · ${rows.length} shown</span><div class="spacer"></div><button class="btn" data-act="newPool">Add person</button></div>
   <div class="bd" style="display:grid;gap:12px">
     <div class="row">
       <input id="pq" type="search" placeholder="Search name, phone or note" value="${esc(P.q)}" style="flex:1;min-width:200px" aria-label="Search pool">
@@ -551,7 +584,7 @@ function rPool(app){
     <td>${(p.groups||[]).map(g=>`<span class="pill p-grp">${esc(g)}</span>`).join(" ")}</td>
     <td>${p.on?`<a href="#" data-edit-escort="${p.on.id}" style="color:inherit">${pill(p.on)}</a>`:'<span class="muted">—</span>'}</td>
     <td class="note">${esc(p.notes||"")}</td>
-    <td style="white-space:nowrap"><button class="btn sm" data-pool-edit="${p.id}">Edit</button>${p.on&&!["out","can"].includes(status(p.on).k)?"":` <button class="btn sm" data-pool-add="${p.id}">Add</button>`}</td></tr>`).join("")}
+    <td style="white-space:nowrap"><button class="btn sm ${picksFor(picksWeek()).some(x=>x.poolId===p.id)?"primary":""}" data-pick-toggle="${p.id}" title="Site Lead Pick for next week" aria-label="Site Lead Pick">${picksFor(picksWeek()).some(x=>x.poolId===p.id)?"★ Picked":"☆ Pick"}</button> <button class="btn sm" data-pool-edit="${p.id}">Edit</button>${p.on&&!["out","can"].includes(status(p.on).k)?"":` <button class="btn sm" data-pool-add="${p.id}">Add</button>`}</td></tr>`).join("")}
   </tbody></table></div>`:`<div class="empty-state"><strong>${all.length?"Nobody matches":"The staffing pool is empty"}</strong><span>${all.length?"Change the search or filters.":"Add people you can staff from."}</span></div>`}</div>`;
   const pq=$("#pq"); pq.oninput=()=>{ P.q=pq.value; const pos=pq.selectionStart; dirty=false; render(); const n=$("#pq"); n.focus(); try{n.setSelectionRange(pos,pos)}catch(e){} };
   $("#pgrp").onchange=e=>{ P.grp=e.target.value; render(); };
@@ -1328,6 +1361,8 @@ async function exportPDF(){
     table(["Week","Needed","HR218 needed","HR218 working","Staying all week","Leaving this week","Arriving / booked","Still needed"], [0,1].map(o=>{const w=weekRange(o), p=weekPlan(w); return [`${fD(w.from)} – ${fD(w.to)}`, p.needed??"Not set", p.hrNeeded??"—", p.hrCovered, p.staying.length, p.leaving.length, p.arriving.length, p.needed==null?"—":p.open>0?p.open:(p.over?`0 (+${p.over} over)`:"0")];}), {styles:{...tableBase.styles,halign:"center"}});
     section("On site now");
     table(["Escort","Phone","Arrived","Expected departure","Room","Partner"], all.filter(e=>status(e).k==="on").map(e=>[e.name,e.phone||"—",arrT(e),fDT(e.departAt)+(e.departBy==="escort"?" (self-reported)":""),e.roomId?roomLabel(S.rooms[e.roomId]):"Unassigned",partnerOf(e).map(x=>x.name).join(", ")||"Unassigned"]));
+    if(picksFor(nw.from).length){ section(`Site Lead Picks · week of ${fD(nw.from)} (wish list, SOC decides)`);
+      table(["#","Escort","Phone","HR218","Note","Status"], picksFor(nw.from).map((p,i)=>[i+1,p.name,p.phone||"—",p.hr218?"Yes":"—",p.note||"—",pickOnRoster(p,nw)?"On roster":"Waiting on SOC"])); }
     section(`Coming next week · ${fD(nw.from)} – ${fD(nw.to)}`);
     table(["Escort","Phone","Arrives","Room","Partner","Rental car"], all.filter(e=>inWeek(e.arriveAt,nw)).map(e=>{const c=carsFor(e)[0];return [e.name,e.phone||"—",arrT(e),e.roomId?roomLabel(S.rooms[e.roomId]):"To be assigned",partnerOf(e).map(x=>x.name).join(", ")||"To be assigned",hasRental(e)?"Yes":"—"]}));
   }
@@ -1378,15 +1413,20 @@ function copyText(text, okMsg, markIds){
   try{ navigator.clipboard.writeText(text).then(()=>{ mark(); toast(okMsg); }, fallback); }catch(e){ fallback(); }
 }
 /* ---------- events ---------- */
+document.addEventListener("change", ev=>{ const n=ev.target.closest("[data-pick-note]"); if(n){ dirty=false; const ps=[...picksFor(picksWeek())]; const i=+n.dataset.pickNote; if(ps[i]){ ps[i]={...ps[i], note:n.value.trim()}; savePicks(picksWeek(), ps); } return; } });
 document.addEventListener("change", ev=>{ const d=ev.target.closest("[data-bk-date]"); if(!d) return; dirty=false; const rid=d.dataset.bkDate; patch("rooms", rid, {bookedUntil:d.value}).then(()=>toast(d.value?`${roomLabel(S.rooms[rid])}: booked until ${fD(d.value)}`:`${roomLabel(S.rooms[rid])}: date cleared`)); });
 document.addEventListener("click", ev=>{
   const tx=ev.target.closest("[data-texted]"); if(tx){ const id=tx.dataset.texted; if(!R.escorts[id]?.invitedAt) patch("escorts", id, {invitedAt:new Date().toISOString()}); toast("Opening Messages…"); return; }
-  const t=ev.target.closest("[data-ext-copy],[data-del-escort],[data-fd-copy],[data-serviced],[data-wk-save],[data-wk-edit],[data-wk-open],[data-pool-edit],[data-pool-add],[data-wk],[data-invite],[data-mark-inv],[data-copy-all],[data-act],[data-edit-escort],[data-edit-room],[data-edit-car],[data-edit-team],[data-pick],[data-copy],[data-tab],[data-tab-go]");
+  const t=ev.target.closest("[data-pick-toggle],[data-picks-copy],[data-pick-move],[data-pick-del],[data-ext-copy],[data-del-escort],[data-fd-copy],[data-serviced],[data-wk-save],[data-wk-edit],[data-wk-open],[data-pool-edit],[data-pool-add],[data-wk],[data-invite],[data-mark-inv],[data-copy-all],[data-act],[data-edit-escort],[data-edit-room],[data-edit-car],[data-edit-team],[data-pick],[data-copy],[data-tab],[data-tab-go]");
   if(!t) return;
   if(t.matches("a")) ev.preventDefault();
   if(t.dataset.tab||t.dataset.tabGo){ tab=t.dataset.tab||t.dataset.tabGo; ls.set("njsb_tab",tab); return render(); }
   if(viewMode==="admin"){
     if(t.dataset.delEscort){ const id=t.dataset.delEscort; if(DEL_ARM!==id){ DEL_ARM=id; dirty=false; render(); setTimeout(()=>{ if(DEL_ARM===id){ DEL_ARM=""; render(); } },5000); return; } DEL_ARM=""; return removeEscort(id); }
+    if(t.dataset.pickToggle) return togglePick(t.dataset.pickToggle);
+    if(t.dataset.picksCopy) return copyText(picksText(picksWeek()), "Site Lead Picks copied", []);
+    if(t.dataset.pickMove){ const [i,d]=t.dataset.pickMove.split(":").map(Number), ps=[...picksFor(picksWeek())], j=i+d; if(j<0||j>=ps.length) return; [ps[i],ps[j]]=[ps[j],ps[i]]; return savePicks(picksWeek(), ps); }
+    if(t.dataset.pickDel!==undefined){ const ps=[...picksFor(picksWeek())]; ps.splice(+t.dataset.pickDel,1); return savePicks(picksWeek(), ps); }
     if(t.dataset.extCopy) return copyText(extensionsText(), "Extension list copied", []);
     if(t.dataset.serviced) return markServiced(t.dataset.serviced);
     if(t.dataset.fdCopy) return copyText(frontDesk().text, "Front desk list copied", []);
