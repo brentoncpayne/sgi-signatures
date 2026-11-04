@@ -118,7 +118,7 @@ input.filled{background:var(--arrive-bg);transition:background .3s}
 .slot.empty{color:var(--muted);font-style:italic;background:transparent;border:1px dashed var(--line)}
 .timeline{display:grid;gap:16px}
 .day h4{margin:0 0 6px;font:600 12px var(--body);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
-.mv{display:grid;grid-template-columns:62px 22px 1fr;gap:8px;align-items:start;padding:6px 0;border-top:1px solid var(--line)}
+.mv{display:grid;grid-template-columns:40px 1fr;gap:8px;align-items:start;padding:6px 0;border-top:1px solid var(--line)}
 .mv .dir{font-weight:700;font-family:var(--mono);text-align:center;border-radius:3px;font-size:12px;line-height:20px}
 .mv .in{background:var(--arrive-bg);color:var(--arrive)} .mv .out{background:var(--depart-bg);color:var(--depart)}
 .empty-state{padding:28px 18px;text-align:center;color:var(--muted);display:grid;gap:10px;justify-items:center}
@@ -218,7 +218,9 @@ const DAYS=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"], MON=["Jan","Feb","Mar","
 const p2 = n => String(n).padStart(2,"0");
 const fT = s => { const d=D(s); return d&&!isNaN(d)? `${p2(d.getHours())}${p2(d.getMinutes())}` : "" };
 const fDay = s => { const d=D(s); return d&&!isNaN(d)? `${DAYS[d.getDay()]} ${MON[d.getMonth()]} ${d.getDate()}` : "" };
-const fDT = s => s ? `${fDay(s)} · ${fT(s)}` : "—";
+const fDT = s => s ? fDay(s.length===10? s+"T12:00": s) : "—";
+const dIn = s => s ? String(s).slice(0,10) : "";
+const dOut = s => s ? s+"T12:00" : "";
 const fISO = iso => { const d=iso?new Date(iso):null; return d&&!isNaN(d)? `${DAYS[d.getDay()]} ${MON[d.getMonth()]} ${d.getDate()} · ${p2(d.getHours())}${p2(d.getMinutes())}` : "—" };
 const fD = s => s ? fDay(s.length===10? s+"T12:00": s) : "—";
 const dayKey = s => s ? s.slice(0,10) : "";
@@ -231,7 +233,7 @@ const stayT = e => !e.stayUntil ? "" : e.stayUntil==="none" ? "Can't extend" : `
 const hasRental = e => !!(e && (carsFor(e).length || carIn(e)));
 const carIn = e => e.carInName && e.carInName.has ? e.carInName : null;
 const carNameT = e => { const c=carIn(e); if(c) return "Yes"; if(e.carInName && e.carInName.has===false) return "No"; return ""; };
-const arrT = e => e.arriveAt ? (e.arriveTbd ? `${fDay(e.arriveAt)} · time TBD` : fDT(e.arriveAt)) : "—";
+const arrT = e => e.arriveAt ? fDT(e.arriveAt) : "—";
 /* merge escort-reported departures onto the roster */
 function merge(){
   const byE={};
@@ -399,7 +401,7 @@ function rOverview(app){
     <div class="panel"><div class="hd"><h3>Movement board</h3><div class="spacer"></div><button class="btn sm primary" data-act="newEscort">Add escort</button></div>
       <div class="bd">${upcoming.length? `<div class="timeline">${Object.entries(byDay).map(([k,ms])=>`
         <div class="day"><h4>${k===tKey?"Today · ":""}${fD(k)}</h4>${ms.map(m=>`
-          <div class="mv"><span class="t">${m.dir==="in"&&m.e.arriveTbd?"TBD":fT(m.at)}</span><span class="dir ${m.dir}">${m.dir==="in"?"IN":"OUT"}</span>
+          <div class="mv"><span class="dir ${m.dir}">${m.dir==="in"?"IN":"OUT"}</span>
           <div><a href="#" data-edit-escort="${m.e.id}" style="color:inherit;font-weight:600">${esc(m.e.name)}</a>
           <div class="note">${m.dir==="in"?"Arrival":"Departure"}${m.e.roomId?" · "+esc(roomLabel(S.rooms[m.e.roomId])):""}</div></div></div>`).join("")}</div>`).join("")}</div>`
         : `<div class="empty-state"><strong>No upcoming arrivals or departures</strong><span>Add escorts with their arrival and departure times and they line up here by day.</span></div>`}
@@ -452,9 +454,9 @@ function rWeek(app){
   </tbody></table></div>` : `<div class="empty-state"><strong>No arrivals booked for this week</strong><span>Paste SOC's list below to add everyone at once.</span></div>`}</div>
   <div class="grid2">
     <div class="panel"><div class="hd"><h3>Add SOC's list</h3></div><div class="bd" style="display:grid;gap:12px">
-      <p class="note" style="margin:0">One escort per line. Separate fields with commas or tabs: <span class="mono">Name, phone, arrival date, time</span>. Only the name is required; anything missing defaults to the date below with time TBD. Pasting straight from an email or spreadsheet works.</p>
+      <p class="note" style="margin:0">One escort per line. Separate fields with commas or tabs: <span class="mono">Name, phone, arrival date</span>. Only the name is required; anything without a date gets the date below. Pasting straight from an email or spreadsheet works.</p>
       <label class="f">Default arrival date<input type="date" id="in_date" value="${esc(w.from)}"></label>
-      <label class="f">Escorts<textarea id="in_list" style="min-height:140px;font-family:var(--mono);font-size:13px" placeholder="Paste SOC's list here. Example:\nJ. Rivera, 973-555-0142, 11/2, 1400\nM. Okafor, 201-555-0199, 11/3"></textarea></label>
+      <label class="f">Escorts<textarea id="in_list" style="min-height:140px;font-family:var(--mono);font-size:13px" placeholder="Paste SOC's list here. Example:\nJ. Rivera, 973-555-0142, 11/2\nM. Okafor, 201-555-0199, 11/3"></textarea></label>
       <div id="in_prev"></div>
       <div class="row"><button class="btn" id="in_check">Preview</button><button class="btn primary" id="in_add">Add to roster</button><span class="note" id="in_msg"></span></div>
     </div></div>
@@ -477,7 +479,7 @@ function rWeek(app){
     const names=new Set(Object.values(R.escorts).map(e=>(e.name||"").trim().toLowerCase()));
     parsed.forEach(p=>{ p.dup=names.has(p.name.toLowerCase()); if(!p.phone){ const hit=poolList().find(x=>(x.name||"").toLowerCase()===p.name.toLowerCase()); if(hit?.phone){ p.phone=fmtPhone(hit.phone); p.fromPool=true; } } });
     const add=parsed.filter(p=>!p.dup);
-    $("#in_prev").innerHTML = parsed.length? `<div class="tbl-wrap"><table><thead><tr><th>Name</th><th>Phone</th><th>Arrives</th><th></th></tr></thead><tbody>${parsed.map(p=>`<tr><td>${esc(p.name)}</td><td class="mono">${esc(p.phone||"—")}${p.fromPool?' <span class="pill p-grp">from pool</span>':""}</td><td class="t">${p.tbd?fDay(p.arriveAt)+" · time TBD":fDT(p.arriveAt)}</td><td>${p.dup?'<span class="pill p-out">Already on roster</span>':'<span class="pill p-on">New</span>'}</td></tr>`).join("")}</tbody></table></div>` : `<p class="note">No names found.</p>`;
+    $("#in_prev").innerHTML = parsed.length? `<div class="tbl-wrap"><table><thead><tr><th>Name</th><th>Phone</th><th>Arrives</th><th></th></tr></thead><tbody>${parsed.map(p=>`<tr><td>${esc(p.name)}</td><td class="mono">${esc(p.phone||"—")}${p.fromPool?' <span class="pill p-grp">from pool</span>':""}</td><td class="t">${fDT(p.arriveAt)}</td><td>${p.dup?'<span class="pill p-out">Already on roster</span>':'<span class="pill p-on">New</span>'}</td></tr>`).join("")}</tbody></table></div>` : `<p class="note">No names found.</p>`;
     $("#in_add").disabled=!add.length; $("#in_add").textContent= add.length? `Add ${add.length} to roster` : "Add to roster";
   };
   $("#in_list").oninput=()=>{ parsed=[]; $("#in_prev").innerHTML=""; $("#in_add").textContent="Add to roster"; $("#in_add").disabled=false; };
@@ -575,7 +577,7 @@ function rPool(app){
       <select id="pst" aria-label="Status" style="width:auto">${opt("avail","Not on roster now",P.status==="avail")}${opt("roster","On roster now",P.status==="roster")}${opt("any","Everyone",P.status==="any")}</select>
     </div>
     <div class="row"><button class="btn primary" id="pAdd" ${selN?"":"disabled"}>Add ${selN||""} to roster</button><button class="btn" id="pCopy" ${selN?"":"disabled"}>Copy ${selN||""} numbers</button>${selN?`<button class="btn sm" id="pClr">Clear selection</button>`:""}
-      <span class="note">Added escorts land on the roster with arrival TBD; set dates on the Escorts or Week ahead tab.</span></div>
+      <span class="note">Added escorts land on the roster with no date yet; set dates on the Escorts or Week ahead tab.</span></div>
   </div>
   ${rows.length?`<div class="tbl-wrap"><table><thead><tr><th style="width:34px"><input type="checkbox" id="pAll" aria-label="Select all shown" ${rows.length&&rows.every(r=>P.sel.has(r.id))?"checked":""}></th><th>Name</th><th>Phone</th><th>Groups</th><th>Roster</th><th>Notes</th><th></th></tr></thead><tbody>
   ${rows.map(p=>`<tr><td><input type="checkbox" data-psel="${p.id}" ${P.sel.has(p.id)?"checked":""} aria-label="Select ${esc(p.name||p.phone)}"></td>
@@ -602,7 +604,7 @@ async function addFromPool(id, quiet){
   try{
     if(on){ await db.collection("escorts").doc(on.id).set({...R.escorts[on.id], state:"", arriveAt:`${w.from}T12:00`, arriveTbd:true, departAt:"", departSetAt:new Date().toISOString(), roomId:"", teamId:"", invitedAt:"", poolId:id}); }
     else await db.collection("escorts").doc(uid("e")).set({name:p.name||fmtPhone(p.phone), phone:fmtPhone(p.phone), arriveAt:`${w.from}T12:00`, arriveTbd:true, poolId:id, addedVia:"Staffing pool", addedAt:new Date().toISOString(), hr218:(p.groups||[]).includes("HR218"), notes:p.notes||""});
-    if(!quiet) toast(`${p.name||p.phone} added for next week (arrival TBD)`); return true;
+    if(!quiet) toast(`${p.name||p.phone} added for next week (arrival date not set)`); return true;
   }catch(e){ toast("Couldn't add: "+(e.message||e.code)); return false; }
 }
 function editPool(id){
@@ -795,7 +797,6 @@ function leavingWeekHTML(){
     ${es.length? days.filter(d=>es.some(e=>dayKey(e.departAt)===d)).map(d=>`<div><div class="row" style="gap:8px;margin-bottom:4px"><b>${fD(d)}</b>${d===t?'<span class="pill p-exp">Today</span>':d<t?'<span class="pill p-out">Done</span>':""}</div>
       ${es.filter(e=>dayKey(e.departAt)===d).map(e=>`<div class="row" style="flex-wrap:wrap;gap:6px 12px;padding:6px 0;border-top:1px solid var(--line)">
         <a href="#" data-edit-escort="${e.id}" style="color:inherit;font-weight:600;min-width:150px">${esc(e.name)}</a>
-        <span class="mono note">${fT(e.departAt)}</span>
         <span class="note">${e.roomId?esc(roomLabel(S.rooms[e.roomId])):"No room"}</span>
         ${e.teamId?`<span class="note">${esc(teamLabel(S.teams[e.teamId]))}</span>`:""}
         ${hasRental(e)?'<span class="pill p-grp">Rental in name</span>':""}
@@ -1138,10 +1139,10 @@ function editEscort(id){
     <label class="f">Phone<input id="m_phone" inputmode="tel" placeholder="555-555-5555" value="${esc(fmtPhone(e.phone))}"></label>
     <label class="f">Status<select id="m_state">${opt("","Automatic (from times)",!e.state)}${opt("arrived","Confirmed on site",e.state==="arrived")}${opt("departed","Departed",e.state==="departed")}${opt("cancelled","Cancelled",e.state==="cancelled")}</select></label></div>
     <div class="fieldset-title">Arrival</div>
-    <div class="fg"><label class="f">Date & time<input type="datetime-local" id="m_arriveAt" value="${esc(e.arriveAt||"")}"></label></div>
+    <div class="fg"><label class="f">Arrival date<input type="date" id="m_arriveAt" value="${esc(dIn(e.arriveAt))}"></label></div>
     <div class="fieldset-title">Departure</div>
     ${e.departBy==="escort"?`<p class="note" style="margin:0"><span class="pill p-self">Self-reported</span> ${esc(e.name)} entered this on ${fISO(e.departReportedAt)}${e.escortNote?` — “${esc(e.escortNote)}”`:""}. Changing it here overrides theirs until they submit again.</p>`:""}
-    <div class="fg"><label class="f">Planned departure<input type="datetime-local" id="m_departAt" value="${esc(e.departAt||"")}"></label></div>
+    <div class="fg"><label class="f">Planned departure<input type="date" id="m_departAt" value="${esc(dIn(e.departAt))}"></label></div>
     <div class="row"><label class="check"><input type="checkbox" id="m_hr" ${isHR(e)?"checked":""}> HR218</label></div>
     <div class="fieldset-title">Assignments</div>
     <div class="fg"><label class="f">Hotel room<select id="m_roomId">${roomOpts}</select></label>
@@ -1154,10 +1155,10 @@ function editEscort(id){
   async()=>{
     if(!v("m_name")){ toast("Enter the escort's name"); return false; }
     if(!v("m_phone")){ const hit=poolList().find(p=>(p.name||"").toLowerCase()===v("m_name").toLowerCase()); if(hit?.phone) $("#m_phone").value=fmtPhone(hit.phone); }
-    if(v("m_arriveAt")&&v("m_departAt")&&v("m_departAt")<v("m_arriveAt")){ toast("Departure is before arrival"); return false; }
+    if(v("m_arriveAt")&&v("m_departAt")&&v("m_departAt")<dIn(v("m_arriveAt"))){ toast("Departure is before arrival"); return false; }
     const rent=document.querySelector('input[name="m_rent"]:checked')?.value||"";
     const now=new Date().toISOString();
-    await save("escorts", e.id, {...raw, departSetAt: v("m_departAt")!==(e.departAt||"") ? now : (raw.departSetAt||""), arriveTbd: !!raw.arriveTbd && v("m_arriveAt")===(e.arriveAt||""), name:v("m_name"),phone:v("m_phone"),state:v("m_state"),hr218:$("#m_hr").checked,arriveAt:v("m_arriveAt"),departAt:v("m_departAt"),roomId:v("m_roomId"),teamId:v("m_teamId"),notes:v("m_notes")});
+    await save("escorts", e.id, {...raw, departSetAt: v("m_departAt")!==dIn(e.departAt) ? now : (raw.departSetAt||""), arriveTbd: false, name:v("m_name"),phone:v("m_phone"),state:v("m_state"),hr218:$("#m_hr").checked,arriveAt:dIn(v("m_arriveAt"))===dIn(e.arriveAt)&&e.arriveAt?e.arriveAt:dOut(v("m_arriveAt")),departAt:v("m_departAt")===dIn(e.departAt)&&e.departAt?e.departAt:dOut(v("m_departAt")),roomId:v("m_roomId"),teamId:v("m_teamId"),notes:v("m_notes")});
     if(isAdmin){ const d=digits(v("m_phone")), n=v("m_name"); const hit=d.length===10 ? poolList().find(p=>digits(p.phone)===d) : poolList().find(p=>(p.name||"").toLowerCase()===n.toLowerCase());
       try{ if(!hit) await db.collection("pool").doc(d.length===10?"p"+d:uid("p")).set({name:n, phone:fmtPhone(v("m_phone")), groups:["Added on board"], notes:""});
            else if(!hit.name && n) await db.collection("pool").doc(hit.id).set({...S.pool[hit.id], name:n}); }catch(err){} }
@@ -1251,7 +1252,7 @@ function renderEscortView(app){
     <div class="panel"><div class="hd"><h3>Your departure plans</h3></div><div class="bd" style="display:grid;gap:12px">
       <p class="note" style="margin:0">Answer both. Your site lead sees them right away. Update any time your plans change.</p>
       <div class="fieldset-title" style="font-size:13px">1 · When do you plan to leave?</div>
-      <div class="fg"><label class="f">Planned departure<input type="datetime-local" id="me_dep" value="${esc((mine?.escortId===e.id&&mine.departAt)||e.departAt||"")}"></label></div>
+      <div class="fg"><label class="f">Planned departure<input type="date" id="me_dep" value="${esc(dIn((mine?.escortId===e.id&&mine.departAt)||e.departAt||""))}"></label></div>
       <div class="fieldset-title" style="font-size:13px">2 · If needed, how long can you stay?</div>
       <div class="fg"><label class="f">I can stay until<input type="date" id="me_stay" value="${esc((mine?.escortId===e.id&&mine.stayUntil)||"")}"></label>
       <label class="check" style="align-self:end"><input type="checkbox" id="me_nostay" ${mine?.escortId===e.id&&mine.stayUntil==="none"?"checked":""}> I can't extend past my planned date</label></div>
@@ -1305,8 +1306,8 @@ function renderEscortView(app){
   const ss=$("#svc_send"); if(ss) ss.onclick=async()=>{ const t=document.querySelector('input[name="svc_type"]:checked')?.value; if(!t){ $("#svc_msg").textContent="Choose Window bed, Bathroom bed, Whole room or Towels only."; return; }
     if(await claim({svc:{type:t, note:v("svc_note"), at:new Date().toISOString(), roomId:e.roomId||""}})){ dirty=false; toast("Service request sent"); } };
   $("#me_save").onclick=async()=>{
-    const dep=v("me_dep"); if(!dep){ $("#me_msg").textContent="Pick the date and time you expect to leave."; return; }
-    if(e.arriveAt && dep<e.arriveAt){ $("#me_msg").textContent="That's before your arrival. Check the date."; return; }
+    const dep=dOut(v("me_dep")); if(!dep){ $("#me_msg").textContent="Pick the date you expect to leave."; return; }
+    if(e.arriveAt && dep.slice(0,10)<dIn(e.arriveAt)){ $("#me_msg").textContent="That's before your arrival. Check the date."; return; }
     const nostay=$("#me_nostay").checked, stay=v("me_stay");
     if(!nostay && !stay){ $("#me_msg").textContent="Answer question 2: pick the latest date you could stay, or tick that you can't extend."; return; }
     if(!nostay && stay < dep.slice(0,10)){ $("#me_msg").textContent="The stay-until date is before your planned departure."; return; }
@@ -1374,7 +1375,7 @@ async function exportPDF(){
     section("Arrivals & departures");
     const mv=[]; all.forEach(e=>{ if(inRange(e.arriveAt)) mv.push([e.arriveAt,"ARRIVE",e]); if(inRange(e.departAt)) mv.push([e.departAt,"DEPART",e]); });
     mv.sort((a,b)=>a[0].localeCompare(b[0]));
-    table(["Date","Time","Movement","Escort","Room","Partner team"], mv.map(([at,d,e])=>[fDay(at),d==="ARRIVE"&&e.arriveTbd?"TBD":fT(at),d,e.name,e.roomId?roomLabel(S.rooms[e.roomId]):"—",(e.teamId?teamLabel(S.teams[e.teamId]):"—")]),
+    table(["Date","Movement","Escort","Room","Partner team"], mv.map(([at,d,e])=>[fDay(at),d,e.name,e.roomId?roomLabel(S.rooms[e.roomId]):"—",(e.teamId?teamLabel(S.teams[e.teamId]):"—")]),
       {didParseCell:h=>{ if(h.section==="body"&&h.column.index===2){ h.cell.styles.fontStyle="bold"; h.cell.styles.textColor=h.cell.raw==="ARRIVE"?[28,122,85]:[164,80,26]; } }});
   }
   if($("#rp_ros").checked){
