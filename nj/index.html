@@ -360,6 +360,7 @@ function periodLabel(){
   return "";
 }
 function render(){
+  setTimeout(bindSocAdd,0);
   if(HALT){ $("#app").innerHTML=HALT; return; }
   renderHeader(); dirty=false;
   const app=$("#app");
@@ -383,7 +384,7 @@ function rOverview(app){
   const today=new Date(); const tKey=`${today.getFullYear()}-${p2(today.getMonth()+1)}-${p2(today.getDate())}`;
   const upcoming=moves.filter(m=>dayKey(m.at)>=tKey);
   const byDay={}; upcoming.forEach(m=>(byDay[dayKey(m.at)]??=[]).push(m));
-  app.innerHTML=`${leavingWeekHTML()}${picksHTML()}${frontDeskHTML(true)}${extensionsHTML(true)}
+  app.innerHTML=`${socAddHTML()}${leavingWeekHTML()}${picksHTML()}${frontDeskHTML(true)}${extensionsHTML(true)}
   <div class="stats">
     <div class="stat"><b>${es.length}</b><span>On roster</span></div>
     <div class="stat"><b>${on.length}</b><span>On site now</span></div>
@@ -434,6 +435,7 @@ function rWeek(app){
   const notInv=arr.filter(e=>inviteState(e).k==="flag"); const plan=weekPlan(w);
   app.innerHTML=`
   <div class="panel"><div class="bd wkbar"><button class="btn sm" data-wk="-1" aria-label="Previous week">◀</button><span class="lbl">${label}</span><span class="mono muted">${fD(w.from)} – ${fD(w.to)}</span><button class="btn sm" data-wk="1" aria-label="Next week">▶</button>${weekOff!==1?`<button class="btn sm" data-wk="reset">Next week</button>`:""}</div></div>
+  ${weekOff>=0?socAddHTML():""}
   ${weekOff===1?picksHTML():""}
   <div class="panel"><div class="hd"><h3>Staffing plan</h3>${plan.req.notes?`<span class="note">${esc(plan.req.notes)}</span>`:""}<div class="spacer"></div>${plan.open>0?`<button class="btn sm primary" data-tab-go="pool">Fill ${plan.open} from staffing pool</button>`:""}${notInv.length?`<span class="pill p-flag">${notInv.length} to invite</span>`:""}</div><div class="bd" style="display:grid;gap:12px">${planHTML(w)}</div></div>
   <div class="grid2">
@@ -530,13 +532,55 @@ function picksText(from){
   return `SITE LEAD PICKS — ${st.siteName||"New Jersey"} site, week of ${fD(from)}\nRequested by ${st.siteLead||"site lead"}. Wish list only; final staffing is SOC's call.\n`+
     ps.map((p,i)=>`${i+1}. ${p.name}${p.phone?` (${p.phone})`:""}${p.hr218?" · HR218":""}${p.note?` — ${p.note}`:""}`).join("\n");
 }
+/* ---------- SOC confirmed: add who's coming in ---------- */
+function socAddHTML(){
+  const nextMon=weekRange(1).from;
+  return `<div class="panel"><div class="hd"><h3>SOC confirmed — coming in</h3><span class="note">Add each escort SOC tells you is coming</span></div>
+  <form class="bd" id="socForm" style="display:grid;gap:10px">
+    <datalist id="socNames">${poolList().filter(p=>p.name).map(p=>`<option value="${esc(p.name)}">${esc(fmtPhone(p.phone))}</option>`).join("")}</datalist>
+    <div class="fg">
+      <label class="f">Name<input id="soc_name" list="socNames" autocomplete="off" placeholder="Start typing a name"></label>
+      <label class="f">Phone<input id="soc_phone" inputmode="tel" placeholder="555-555-5555"></label>
+      <label class="f">Arriving<input type="date" id="soc_date" value="${esc(ls.get("njsb_socdate")||nextMon)}"></label>
+    </div>
+    <div class="row"><label class="check"><input type="checkbox" id="soc_hr"> HR218</label><div class="spacer"></div><span class="note" id="soc_msg"></span><button class="btn primary" type="submit">Add to roster</button></div>
+  </form></div>`;
+}
+function bindSocAdd(){
+  const f=$("#socForm"); if(!f) return;
+  const nm=$("#soc_name"), ph=$("#soc_phone"), hr=$("#soc_hr"), msg=$("#soc_msg");
+  const fromName=()=>{ const q=nm.value.trim().toLowerCase(); const hit=q&&poolList().find(p=>(p.name||"").trim().toLowerCase()===q);
+    if(hit){ if(hit.phone) ph.value=fmtPhone(hit.phone); hr.checked=(hit.groups||[]).includes("HR218"); msg.textContent="From staffing pool"; } };
+  nm.addEventListener("input",fromName); nm.addEventListener("change",fromName);
+  ph.addEventListener("input",()=>{ const d=digits(ph.value); if(d.length!==10) return; const hit=poolList().find(p=>digits(p.phone)===d); if(hit&&hit.name&&!nm.value.trim()){ nm.value=hit.name; hr.checked=(hit.groups||[]).includes("HR218"); msg.textContent="From staffing pool"; } });
+  f.onsubmit=async ev=>{ ev.preventDefault();
+    const n=nm.value.trim(), d=v("soc_date"), phone=fmtPhone(ph.value);
+    if(!n){ msg.textContent="Enter a name."; return; } if(!d){ msg.textContent="Pick the arrival day."; return; }
+    ls.set("njsb_socdate", d);
+    const dg=digits(phone), dup=Object.entries(R.escorts).find(([id,e])=>(dg&&digits(e.phone)===dg)||(e.name||"").trim().toLowerCase()===n.toLowerCase());
+    if(dup && !["out","can"].includes(status({id:dup[0],...S.escorts[dup[0]]}).k)){ msg.textContent=`${dup[1].name} is already on the roster.`; return; }
+    const data={name:n, phone, arriveAt:d+"T12:00", arriveTbd:false, hr218:hr.checked, addedVia:"SOC confirmed", addedAt:new Date().toISOString(), state:"", departAt:"", roomId:"", teamId:""};
+    if(dup) await db.collection("escorts").doc(dup[0]).set({...R.escorts[dup[0]], ...data, departSetAt:new Date().toISOString(), invitedAt:""});
+    else await db.collection("escorts").doc(uid("e")).set(data);
+    if(isAdmin && dg.length===10 && !poolList().some(p=>digits(p.phone)===dg)){ try{ await db.collection("pool").doc("p"+dg).set({name:n, phone, groups:hr.checked?["HR218"]:["Added on board"], notes:""}); }catch(e){} }
+    toast(`${n} added, arriving ${fD(d)}`); nm.value=""; ph.value=""; hr.checked=false; msg.textContent=""; dirty=false; nm.focus(); };
+}
+async function confirmPick(i){
+  const from=picksWeek(), p=picksFor(from)[i]; if(!p) return;
+  const dg=digits(p.phone), dup=Object.entries(R.escorts).find(([id,e])=>(dg&&digits(e.phone)===dg)||(e.name||"").trim().toLowerCase()===(p.name||"").trim().toLowerCase());
+  const data={name:p.name, phone:p.phone||"", arriveAt:from+"T12:00", arriveTbd:false, hr218:!!p.hr218, addedVia:"SOC confirmed (Site Lead Pick)", addedAt:new Date().toISOString(), state:"", departAt:"", roomId:"", teamId:"", poolId:p.poolId||""};
+  if(dup) await db.collection("escorts").doc(dup[0]).set({...R.escorts[dup[0]], ...data, departSetAt:new Date().toISOString(), invitedAt:""});
+  else await db.collection("escorts").doc(uid("e")).set(data);
+  toast(`${p.name} added, arriving ${fD(from)}. Change the day on their record if needed.`);
+}
+
 function picksHTML(){
   const from=picksWeek(), w=weekRange(1), ps=picksFor(from), plan=weekPlan(w);
   return `<div class="panel"><div class="hd"><h3>Site Lead Picks · week of ${fD(from)}</h3><span class="note">Your wish list for SOC. SOC makes the final call.</span><div class="spacer"></div>${ps.length?`<button class="btn sm" data-picks-copy="1">Copy for SOC</button>`:""}<button class="btn sm" data-tab-go="pool">Add from staffing pool</button></div><div class="bd" style="display:grid;gap:10px">
     ${ps.length?`<div class="tbl-wrap"><table><thead><tr><th>#</th><th>Escort</th><th>Note for SOC</th><th>SOC decision</th><th></th></tr></thead><tbody>
     ${ps.map((p,i)=>{ const on=pickOnRoster(p,w); return `<tr><td class="mono">${i+1}</td><td><b>${esc(p.name)}</b>${p.hr218?'<span class="pill p-grp" style="margin-left:6px">HR218</span>':""}${p.phone?`<div class="note mono">${esc(p.phone)}</div>`:""}</td>
       <td><input data-pick-note="${i}" value="${esc(p.note||"")}" placeholder="e.g. Knows the post, good with new guys" aria-label="Note for ${esc(p.name)}"></td>
-      <td>${on?'<span class="pill p-on">On the roster</span>':'<span class="pill p-exp">Waiting on SOC</span>'}</td>
+      <td>${on?'<span class="pill p-on">On the roster</span>':`<span class="pill p-exp">Waiting on SOC</span> <button class="btn sm primary" data-pick-confirm="${i}">SOC confirmed</button>`}</td>
       <td style="white-space:nowrap"><button class="btn sm" data-pick-move="${i}:-1" ${i===0?"disabled":""} aria-label="Move up">▲</button> <button class="btn sm" data-pick-move="${i}:1" ${i===ps.length-1?"disabled":""} aria-label="Move down">▼</button> <button class="btn sm danger" data-pick-del="${i}">Remove</button></td></tr>`; }).join("")}
     </tbody></table></div>
     <p class="note" style="margin:0">${ps.filter(p=>pickOnRoster(p,w)).length} of ${ps.length} picks are on next week's roster.${plan.needed!=null?` SOC needs ${plan.needed} next week; ${plan.open>0?`${plan.open} still open.`:"fully staffed."}`:""}</p>`
@@ -1422,12 +1466,13 @@ document.addEventListener("change", ev=>{ const n=ev.target.closest("[data-pick-
 document.addEventListener("change", ev=>{ const d=ev.target.closest("[data-bk-date]"); if(!d) return; dirty=false; const rid=d.dataset.bkDate; patch("rooms", rid, {bookedUntil:d.value}).then(()=>toast(d.value?`${roomLabel(S.rooms[rid])}: booked until ${fD(d.value)}`:`${roomLabel(S.rooms[rid])}: date cleared`)); });
 document.addEventListener("click", ev=>{
   const tx=ev.target.closest("[data-texted]"); if(tx){ const id=tx.dataset.texted; if(!R.escorts[id]?.invitedAt) patch("escorts", id, {invitedAt:new Date().toISOString()}); toast("Opening Messages…"); return; }
-  const t=ev.target.closest("[data-pick-toggle],[data-picks-copy],[data-pick-move],[data-pick-del],[data-ext-copy],[data-del-escort],[data-fd-copy],[data-serviced],[data-wk-save],[data-wk-edit],[data-wk-open],[data-pool-edit],[data-pool-add],[data-wk],[data-invite],[data-mark-inv],[data-copy-all],[data-act],[data-edit-escort],[data-edit-room],[data-edit-car],[data-edit-team],[data-pick],[data-copy],[data-tab],[data-tab-go]");
+  const t=ev.target.closest("[data-pick-confirm],[data-pick-toggle],[data-picks-copy],[data-pick-move],[data-pick-del],[data-ext-copy],[data-del-escort],[data-fd-copy],[data-serviced],[data-wk-save],[data-wk-edit],[data-wk-open],[data-pool-edit],[data-pool-add],[data-wk],[data-invite],[data-mark-inv],[data-copy-all],[data-act],[data-edit-escort],[data-edit-room],[data-edit-car],[data-edit-team],[data-pick],[data-copy],[data-tab],[data-tab-go]");
   if(!t) return;
   if(t.matches("a")) ev.preventDefault();
   if(t.dataset.tab||t.dataset.tabGo){ tab=t.dataset.tab||t.dataset.tabGo; ls.set("njsb_tab",tab); return render(); }
   if(viewMode==="admin"){
     if(t.dataset.delEscort){ const id=t.dataset.delEscort; if(DEL_ARM!==id){ DEL_ARM=id; dirty=false; render(); setTimeout(()=>{ if(DEL_ARM===id){ DEL_ARM=""; render(); } },5000); return; } DEL_ARM=""; return removeEscort(id); }
+    if(t.dataset.pickConfirm!==undefined) return confirmPick(+t.dataset.pickConfirm);
     if(t.dataset.pickToggle) return togglePick(t.dataset.pickToggle);
     if(t.dataset.picksCopy) return copyText(picksText(picksWeek()), "Site Lead Picks copied", []);
     if(t.dataset.pickMove){ const [i,d]=t.dataset.pickMove.split(":").map(Number), ps=[...picksFor(picksWeek())], j=i+d; if(j<0||j>=ps.length) return; [ps[i],ps[j]]=[ps[j],ps[i]]; return savePicks(picksWeek(), ps); }
