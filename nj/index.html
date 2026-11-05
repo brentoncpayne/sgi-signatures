@@ -384,7 +384,7 @@ function rOverview(app){
   const today=new Date(); const tKey=`${today.getFullYear()}-${p2(today.getMonth()+1)}-${p2(today.getDate())}`;
   const upcoming=moves.filter(m=>dayKey(m.at)>=tKey);
   const byDay={}; upcoming.forEach(m=>(byDay[dayKey(m.at)]??=[]).push(m));
-  app.innerHTML=`${socAddHTML()}${leavingWeekHTML()}${picksHTML()}${frontDeskHTML(true)}${extensionsHTML(true)}
+  app.innerHTML=`${socAddHTML()}${leavingWeekHTML()}${comingNextHTML()}${picksHTML()}${frontDeskHTML(true)}${extensionsHTML(true)}
   <div class="stats">
     <div class="stat"><b>${es.length}</b><span>On roster</span></div>
     <div class="stat"><b>${on.length}</b><span>On site now</span></div>
@@ -848,6 +848,28 @@ function leavingWeekHTML(){
       </div>`).join("")}</div>`).join("")
       : `<p class="muted" style="margin:0">Nobody is scheduled to leave this week.</p>`}
     ${noDate.length?`<p class="note" style="margin:0"><b>On site with no departure date:</b> ${esc(noDate.map(e=>e.name).join(", "))}</p>`:""}
+  </div></div>`;
+}
+
+/* ---------- coming in next week (overview) ---------- */
+function comingNextHTML(){
+  const w=weekRange(1), p=weekPlan(w);
+  const arr=p.arriving.slice().sort((a,b)=>(a.arriveAt||"").localeCompare(b.arriveAt||""));
+  const gap = p.needed==null ? "" : p.open>0 ? `<span class="pill p-flag">${p.open} still needed</span>` : p.over ? `<span class="pill p-grp">${p.over} over</span>` : `<span class="pill p-on">Fully staffed</span>`;
+  return `<div class="panel"><div class="hd"><h3>Coming in next week</h3><span class="note mono">${fD(w.from)} – ${fD(w.to)}</span><div class="spacer"></div>${gap}<button class="btn sm" data-wk-open="1">Week ahead</button></div><div class="bd" style="display:grid;gap:12px">
+    ${p.needed==null?`<div class="ask"><div style="flex:1 1 220px"><b>How many escorts does SOC need next week?</b><div class="note">Enter it to see how many you still need.</div></div>
+      <label class="f">Escorts needed<input type="number" min="0" inputmode="numeric" id="wk_need_${w.from}" placeholder="e.g. 8"></label>
+      <label class="f">HR218 of those<input type="number" min="0" inputmode="numeric" id="wk_armed_${w.from}" placeholder="optional"></label>
+      <button class="btn primary" data-wk-save="${w.from}">Set</button></div>`:""}
+    <div class="plan">
+      <div class="stat need"><b>${p.needed??"—"}</b><span>Needed</span></div>
+      <div class="stat"><b>${p.staying.length+p.leaving.length}</b><span>Already here</span></div>
+      <div class="stat"><b>${arr.length}</b><span>Coming in</span></div>
+      <div class="stat ${p.needed==null?"":p.open>0?"gap":"ok"}"><b>${p.needed==null?"—":p.open}</b><span>Still needed</span></div>
+    </div>
+    ${arr.length?`<div class="tbl-wrap"><table><tbody>${arr.map(e=>`<tr class="click" data-edit-escort="${e.id}"><td><b>${esc(e.name)}</b>${hrPill(e)}</td><td class="t">${arrT(e)}</td><td>${e.roomId?esc(roomLabel(S.rooms[e.roomId])):'<span class="pill p-flag">No room</span>'}</td><td>${invPill(e)}</td></tr>`).join("")}</tbody></table></div>`
+      : `<p class="muted" style="margin:0">Nobody confirmed for next week yet. Add them above as SOC tells you.</p>`}
+    ${p.leaving.length?`<p class="note" style="margin:0">${p.leaving.length} of those already here leave during next week: ${esc(p.leaving.map(e=>`${e.name} (${fD(dayKey(e.departAt))})`).join(", "))}.</p>`:""}
   </div></div>`;
 }
 
