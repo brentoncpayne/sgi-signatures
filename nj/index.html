@@ -263,13 +263,14 @@ function weekPlan(w){
   const arrLeaving=arriving.filter(e=>e.departAt && e.departAt<=endTs);
   const req=S.weeks[w.from]||{};
   const needed= req.needed===undefined||req.needed===""? null : +req.needed;
+  const rentNeeded= req.rentNeeded===undefined||req.rentNeeded===""? null : +req.rentNeeded;
   const hrNeeded= req.hrNeeded===undefined||req.hrNeeded===""? null : +req.hrNeeded;
   const covered=staying.length+leaving.length+arriving.length;
   const open= needed==null? null : Math.max(0, needed-covered);
   const over= needed==null? 0 : Math.max(0, covered-needed);
   const hrCovered=[...staying,...leaving,...arriving].filter(isHR).length;
   const canExtend=leaving.filter(e=>e.stayUntil && e.stayUntil!=="none" && e.stayUntil>w.to);
-  return {req,needed,hrNeeded,staying,leaving,arriving,arrLeaving,covered,open,over,hrCovered,canExtend};
+  return {req,needed,rentNeeded,hrNeeded,staying,leaving,arriving,arrLeaving,covered,open,over,hrCovered,canExtend};
 }
 function planHTML(w, compact){
   const p=weekPlan(w);
@@ -277,9 +278,10 @@ function planHTML(w, compact){
   return `${p.needed==null?`<div class="ask"><div style="flex:1 1 220px"><b>How many escorts does the NJ site need ${fD(w.from)} – ${fD(w.to)}?</b><div class="note">Enter SOC's number for this week. The board works out the gap.</div></div>
       <label class="f">Escorts needed<input type="number" min="0" inputmode="numeric" id="wk_need_${w.from}" placeholder="e.g. 8"></label>
       <label class="f">HR218 of those<input type="number" min="0" inputmode="numeric" id="wk_armed_${w.from}" placeholder="optional"></label>
+      <label class="f">Need rentals<input type="number" min="0" inputmode="numeric" id="wk_rent_${w.from}" placeholder="optional"></label>
       <button class="btn primary" data-wk-save="${w.from}">Set</button></div>`:""}
     <div class="plan">
-      <div class="stat need"><b>${p.needed??"—"}</b><span>Needed${p.hrNeeded!=null?` · ${p.hrNeeded} HR218`:""}</span></div>
+      <div class="stat need"><b>${p.needed??"—"}</b><span>Needed${p.hrNeeded!=null?` · ${p.hrNeeded} HR218`:""}${p.rentNeeded!=null?` · ${p.rentNeeded} need rental`:""}</span></div>
       <div class="stat"><b>${p.staying.length}</b><span>Staying all week</span></div>
       <div class="stat"><b>${p.leaving.length}</b><span>Leaving this week</span></div>
       <div class="stat"><b>${p.arriving.length}</b><span>Arriving / booked</span></div>
@@ -291,9 +293,10 @@ function editWeekNeed(from){
   const r=S.weeks[from]||{};
   modal(`Staffing need · week of ${fD(from)}`, `
     <div class="fg"><label class="f">Escorts needed<input type="number" min="0" id="m_need" value="${esc(r.needed??"")}"></label>
-    <label class="f">HR218 of those<input type="number" min="0" id="m_armed" value="${esc(r.hrNeeded??"")}"></label></div>
+    <label class="f">HR218 of those<input type="number" min="0" id="m_armed" value="${esc(r.hrNeeded??"")}"></label>
+    <label class="f">Need rentals<input type="number" min="0" id="m_rent" value="${esc(r.rentNeeded??"")}"></label></div>
     <label class="f">Notes from SOC<textarea id="m_wnotes" placeholder="Posts, shifts, special requirements">${esc(r.notes||"")}</textarea></label>`,
-  async()=>{ await save("weeks", from, {needed:v("m_need")===""?"":+v("m_need"), hrNeeded:v("m_armed")===""?"":+v("m_armed"), notes:v("m_wnotes"), updatedAt:new Date().toISOString()}); });
+  async()=>{ await save("weeks", from, {needed:v("m_need")===""?"":+v("m_need"), ...(S.weeks[from]||{}), needed:v("m_need")===""?"":+v("m_need"), hrNeeded:v("m_armed")===""?"":+v("m_armed"), rentNeeded:v("m_rent")===""?"":+v("m_rent"), notes:v("m_wnotes"), updatedAt:new Date().toISOString()}); });
 }
 function inviteState(e){ if(e.claimedBy) return {k:"joined",t:"Joined"}; if(e.invitedAt) return {k:"inv",t:"Invited"}; return {k:"flag",t:"Not invited"}; }
 const invPill = e => { const i=inviteState(e); return `<span class="pill p-${i.k}">${i.t}</span>` };
@@ -532,7 +535,7 @@ async function togglePick(poolId){
 function picksText(from){
   const w={from, to:weekRange(1).to}, ps=picksFor(from), st=S.site;
   return `SITE LEAD PICKS — ${st.siteName||"New Jersey"} site, week of ${fD(from)}\nRequested by ${st.siteLead||"site lead"}. Wish list only; final staffing is SOC's call.\n`+
-    ps.map((p,i)=>`${i+1}. ${p.name}${p.phone?` (${p.phone})`:""}${p.hr218?" · HR218":""}${p.note?` — ${p.note}`:""}`).join("\n");
+    ps.map((p,i)=>`${i+1}. ${p.name}${p.phone?` (${p.phone})`:""}${p.hr218?" · HR218":""}${p.needsRental?" · NEEDS RENTAL":""}${p.note?` — ${p.note}`:""}`).join("\n")+(()=>{ const pl=weekPlan(w), r=ps.filter(p=>p.needsRental).length; const lines=[]; if(pl.needed!=null) lines.push(`Escorts needed: ${pl.needed}${pl.open>0?` (${pl.open} still open)`:""}`); if(pl.rentNeeded!=null||r) lines.push(`Rentals needed: ${pl.rentNeeded!=null?pl.rentNeeded:r}`); return lines.length?"\n\n"+lines.join("\n"):""; })();
 }
 /* ---------- SOC confirmed: add who's coming in ---------- */
 function socAddHTML(){
@@ -579,13 +582,14 @@ async function confirmPick(i){
 function picksHTML(){
   const from=picksWeek(), w=weekRange(1), ps=picksFor(from), plan=weekPlan(w);
   return `<div class="panel"><div class="hd"><h3>Site Lead Picks · week of ${fD(from)}</h3><span class="note">Your wish list for SOC. SOC makes the final call.</span><div class="spacer"></div>${ps.length?`<button class="btn sm" data-picks-copy="1">Copy for SOC</button>`:""}<button class="btn sm" data-tab-go="pool">Add from staffing pool</button></div><div class="bd" style="display:grid;gap:10px">
-    ${ps.length?`<div class="tbl-wrap"><table><thead><tr><th>#</th><th>Escort</th><th>Note for SOC</th><th>SOC decision</th><th></th></tr></thead><tbody>
+    ${ps.length?`<div class="tbl-wrap"><table><thead><tr><th>#</th><th>Escort</th><th>Rental</th><th>Note for SOC</th><th>SOC decision</th><th></th></tr></thead><tbody>
     ${ps.map((p,i)=>{ const on=pickOnRoster(p,w); return `<tr><td class="mono">${i+1}</td><td><b>${esc(p.name)}</b>${p.hr218?'<span class="pill p-grp" style="margin-left:6px">HR218</span>':""}${p.phone?`<div class="note mono">${esc(p.phone)}</div>`:""}</td>
+      <td><label class="check" style="white-space:nowrap"><input type="checkbox" data-pick-rent="${i}" ${p.needsRental?"checked":""}> Needs rental</label></td>
       <td><input data-pick-note="${i}" value="${esc(p.note||"")}" placeholder="e.g. Knows the post, good with new guys" aria-label="Note for ${esc(p.name)}"></td>
       <td>${on?'<span class="pill p-on">On the roster</span>':`<span class="pill p-exp">Waiting on SOC</span> <button class="btn sm primary" data-pick-confirm="${i}">SOC confirmed</button>`}</td>
       <td style="white-space:nowrap"><button class="btn sm" data-pick-move="${i}:-1" ${i===0?"disabled":""} aria-label="Move up">▲</button> <button class="btn sm" data-pick-move="${i}:1" ${i===ps.length-1?"disabled":""} aria-label="Move down">▼</button> <button class="btn sm danger" data-pick-del="${i}">Remove</button></td></tr>`; }).join("")}
     </tbody></table></div>
-    <p class="note" style="margin:0">${ps.filter(p=>pickOnRoster(p,w)).length} of ${ps.length} picks are on next week's roster.${plan.needed!=null?` SOC needs ${plan.needed} next week; ${plan.open>0?`${plan.open} still open.`:"fully staffed."}`:""}</p>`
+    <p class="note" style="margin:0">${ps.filter(p=>pickOnRoster(p,w)).length} of ${ps.length} picks are on next week's roster. ${ps.filter(p=>p.needsRental).length} need a rental.${plan.needed!=null?` SOC needs ${plan.needed} next week; ${plan.open>0?`${plan.open} still open.`:"fully staffed."}`:""}</p>`
     : `<p class="muted" style="margin:0">No picks yet. On the Staffing pool tab, tap ☆ beside the escorts you'd like back next week.</p>`}
   </div></div>`;
 }
@@ -862,6 +866,7 @@ function comingNextHTML(){
     ${p.needed==null?`<div class="ask"><div style="flex:1 1 220px"><b>How many escorts does SOC need next week?</b><div class="note">Enter it to see how many you still need.</div></div>
       <label class="f">Escorts needed<input type="number" min="0" inputmode="numeric" id="wk_need_${w.from}" placeholder="e.g. 8"></label>
       <label class="f">HR218 of those<input type="number" min="0" inputmode="numeric" id="wk_armed_${w.from}" placeholder="optional"></label>
+      <label class="f">Need rentals<input type="number" min="0" inputmode="numeric" id="wk_rent_${w.from}" placeholder="optional"></label>
       <button class="btn primary" data-wk-save="${w.from}">Set</button></div>`:""}
     <div class="plan">
       <div class="stat need"><b>${p.needed??"—"}</b><span>Needed</span></div>
@@ -1428,12 +1433,12 @@ async function exportPDF(){
     const nw=weekRange(1), ps=picksFor(nw.from);
     section(`Site Lead Picks · week of ${fD(nw.from)} – ${fD(nw.to)}`);
     doc.setFont("helvetica","italic"); doc.setFontSize(8.5); doc.setTextColor(90,104,120); doc.text("Site lead's requested escorts for next week, in order of preference. Wish list only; final staffing is SOC's decision.",M,y); y+=12; doc.setTextColor(20,32,46);
-    table(["#","Escort","Phone","HR218","Site lead note","Status"], ps.map((p,i)=>[i+1,p.name,p.phone||"—",p.hr218?"Yes":"—",p.note||"—",pickOnRoster(p,nw)?"On roster":"Waiting on SOC"]));
+    table(["#","Escort","Phone","HR218","Needs rental","Site lead note","Status"], ps.map((p,i)=>[i+1,p.name,p.phone||"—",p.hr218?"Yes":"—",p.needsRental?"Yes":"—",p.note||"—",pickOnRoster(p,nw)?"On roster":"Waiting on SOC"]));
   }
   if($("#rp_wk").checked){
     const nw=weekRange(1);
     section("Staffing plan");
-    table(["Week","Needed","HR218 needed","HR218 working","Staying all week","Leaving this week","Arriving / booked","Still needed"], [0,1].map(o=>{const w=weekRange(o), p=weekPlan(w); return [`${fD(w.from)} – ${fD(w.to)}`, p.needed??"Not set", p.hrNeeded??"—", p.hrCovered, p.staying.length, p.leaving.length, p.arriving.length, p.needed==null?"—":p.open>0?p.open:(p.over?`0 (+${p.over} over)`:"0")];}), {styles:{...tableBase.styles,halign:"center"}});
+    table(["Week","Needed","HR218 needed","Rentals needed","HR218 working","Staying all week","Leaving this week","Arriving / booked","Still needed"], [0,1].map(o=>{const w=weekRange(o), p=weekPlan(w); return [`${fD(w.from)} – ${fD(w.to)}`, p.needed??"Not set", p.hrNeeded??"—", p.rentNeeded??"—", p.hrCovered, p.staying.length, p.leaving.length, p.arriving.length, p.needed==null?"—":p.open>0?p.open:(p.over?`0 (+${p.over} over)`:"0")];}), {styles:{...tableBase.styles,halign:"center"}});
     section("On site now");
     table(["Escort","Phone","Arrived","Expected departure","Room","Partner"], all.filter(e=>status(e).k==="on").map(e=>[e.name,e.phone||"—",arrT(e),fDT(e.departAt)+(e.departBy==="escort"?" (self-reported)":""),e.roomId?roomLabel(S.rooms[e.roomId]):"Unassigned",partnerOf(e).map(x=>x.name).join(", ")||"Unassigned"]));
     section(`Coming next week · ${fD(nw.from)} – ${fD(nw.to)}`);
@@ -1486,7 +1491,7 @@ function copyText(text, okMsg, markIds){
   try{ navigator.clipboard.writeText(text).then(()=>{ mark(); toast(okMsg); }, fallback); }catch(e){ fallback(); }
 }
 /* ---------- events ---------- */
-document.addEventListener("change", ev=>{ const n=ev.target.closest("[data-pick-note]"); if(n){ dirty=false; const ps=[...picksFor(picksWeek())]; const i=+n.dataset.pickNote; if(ps[i]){ ps[i]={...ps[i], note:n.value.trim()}; savePicks(picksWeek(), ps); } return; } });
+document.addEventListener("change", ev=>{ const rc=ev.target.closest("[data-pick-rent]"); if(rc){ dirty=false; const ps=[...picksFor(picksWeek())], i=+rc.dataset.pickRent; if(ps[i]){ ps[i]={...ps[i], needsRental:rc.checked}; savePicks(picksWeek(), ps); } return; } const n=ev.target.closest("[data-pick-note]"); if(n){ dirty=false; const ps=[...picksFor(picksWeek())]; const i=+n.dataset.pickNote; if(ps[i]){ ps[i]={...ps[i], note:n.value.trim()}; savePicks(picksWeek(), ps); } return; } });
 document.addEventListener("change", ev=>{ const d=ev.target.closest("[data-bk-date]"); if(!d) return; dirty=false; const rid=d.dataset.bkDate; patch("rooms", rid, {bookedUntil:d.value}).then(()=>toast(d.value?`${roomLabel(S.rooms[rid])}: booked until ${fD(d.value)}`:`${roomLabel(S.rooms[rid])}: date cleared`)); });
 document.addEventListener("click", ev=>{
   const tx=ev.target.closest("[data-texted]"); if(tx){ const id=tx.dataset.texted; if(!R.escorts[id]?.invitedAt) patch("escorts", id, {invitedAt:new Date().toISOString()}); toast("Opening Messages…"); return; }
@@ -1504,7 +1509,7 @@ document.addEventListener("click", ev=>{
     if(t.dataset.extCopy) return copyText(extensionsText(), "Extension list copied", []);
     if(t.dataset.serviced) return markServiced(t.dataset.serviced);
     if(t.dataset.fdCopy) return copyText(frontDesk().text, "Front desk list copied", []);
-    if(t.dataset.wkSave){ const f=t.dataset.wkSave, n=$("#wk_need_"+f).value, a=$("#wk_armed_"+f).value; if(n===""){ toast("Enter how many escorts are needed"); return; } dirty=false; return save("weeks", f, {needed:+n, hrNeeded:a===""?"":+a, notes:(S.weeks[f]||{}).notes||"", updatedAt:new Date().toISOString()}); }
+    if(t.dataset.wkSave){ const f=t.dataset.wkSave, n=$("#wk_need_"+f).value, a=$("#wk_armed_"+f).value, rn=($("#wk_rent_"+f)||{}).value||""; if(n===""){ toast("Enter how many escorts are needed"); return; } dirty=false; return save("weeks", f, {...(S.weeks[f]||{}), needed:+n, hrNeeded:a===""?"":+a, rentNeeded:rn===""?"":+rn, notes:(S.weeks[f]||{}).notes||"", updatedAt:new Date().toISOString()}); }
     if(t.dataset.wkEdit) return editWeekNeed(t.dataset.wkEdit);
     if(t.dataset.wkOpen!==undefined){ weekOff=+t.dataset.wkOpen; tab="week"; return render(); }
     if(t.dataset.wk){ weekOff = t.dataset.wk==="reset" ? 1 : weekOff+(+t.dataset.wk); return render(); }
