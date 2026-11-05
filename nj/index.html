@@ -228,6 +228,8 @@ const dayKey = s => s ? s.slice(0,10) : "";
 const ymd = d => `${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())}`;
 function weekStartOf(date){ const ws=+(S.site.weekStart ?? 1); const d=new Date(date.getFullYear(),date.getMonth(),date.getDate()); d.setDate(d.getDate()-((d.getDay()-ws+7)%7)); return d; }
 function weekRange(off){ const s=weekStartOf(new Date()); s.setDate(s.getDate()+7*off); const e=new Date(s); e.setDate(e.getDate()+(+(S.site.weekStart ?? 1)===1?5:6)); return {from:ymd(s),to:ymd(e)}; }
+const arrStart = w => { const prevEnd=addDays(w.from,-7+((+(S.site.weekStart ?? 1)===1)?5:6)); return addDays(prevEnd,1); };
+const inArrWeek = (str,w) => { const k=dayKey(str); return !!k && k>=arrStart(w) && k<=w.to; };
 const inWeek = (str,w) => { const k=dayKey(str); return !!k && k>=w.from && k<=w.to; };
 const stayT = e => !e.stayUntil ? "" : e.stayUntil==="none" ? "Can't extend" : `Can stay to ${fD(e.stayUntil)}`;
 const hasRental = e => !!(e && (carsFor(e).length || carIn(e)));
@@ -254,10 +256,10 @@ const hrPill = e => isHR(e) ? '<span class="pill p-grp" style="margin-left:6px">
 function weekPlan(w){
   const es=escorts().filter(e=>status(e).k!=="can");
   const startTs=w.from+"T00:00", endTs=w.to+"T23:59";
-  const presentAtStart=e=> e.state!=="departed" && (!e.departAt || e.departAt>=startTs) && ((e.arriveAt && e.arriveAt<startTs) || (!e.arriveAt && (e.state==="arrived" || status(e).k==="on")));
+  const presentAtStart=e=> !inArrWeek(e.arriveAt,w) && e.state!=="departed" && (!e.departAt || e.departAt>=startTs) && ((e.arriveAt && e.arriveAt<startTs) || (!e.arriveAt && (e.state==="arrived" || status(e).k==="on")));
   const staying=es.filter(e=>presentAtStart(e) && (!e.departAt || e.departAt>endTs));
   const leaving=es.filter(e=>presentAtStart(e) && e.departAt && e.departAt>=startTs && e.departAt<=endTs);
-  const arriving=es.filter(e=>inWeek(e.arriveAt,w));
+  const arriving=es.filter(e=>inArrWeek(e.arriveAt,w));
   const arrLeaving=arriving.filter(e=>e.departAt && e.departAt<=endTs);
   const req=S.weeks[w.from]||{};
   const needed= req.needed===undefined||req.needed===""? null : +req.needed;
@@ -376,7 +378,7 @@ function rOverview(app){
   const arr72=es.filter(e=>{const a=D(e.arriveAt);return a&&a>now&&a<=h72});
   const dep72=es.filter(e=>{const d=D(e.departAt);return d&&d>now&&d<=h72});
   const noRoom=es.filter(e=>status(e).k!=="out"&&!e.roomId), noPartner=es.filter(e=>status(e).k!=="out"&&!e.teamId);
-  const nw=weekRange(1), nextWk=es.filter(e=>inWeek(e.arriveAt,nw));
+  const nw=weekRange(1), nextWk=es.filter(e=>inArrWeek(e.arriveAt,nw));
   const svcDue=list("rooms").filter(r=>["over","today"].includes(serviceInfo(r).k));
   const moves=[];
   es.forEach(e=>{ if(e.arriveAt) moves.push({at:e.arriveAt,dir:"in",e}); if(e.departAt) moves.push({at:e.departAt,dir:"out",e}); });
@@ -430,7 +432,7 @@ function rOverview(app){
 function rWeek(app){
   const w=weekRange(weekOff), es=escorts().filter(e=>status(e).k!=="can");
   const on=es.filter(e=>status(e).k==="on");
-  const arr=es.filter(e=>inWeek(e.arriveAt,w)), dep=es.filter(e=>inWeek(e.departAt,w));
+  const arr=es.filter(e=>inArrWeek(e.arriveAt,w)), dep=es.filter(e=>inWeek(e.departAt,w));
   const label = weekOff===0?"This week":weekOff===1?"Next week":weekOff===-1?"Last week":(weekOff>0?`In ${weekOff} weeks`:`${-weekOff} weeks ago`);
   const notInv=arr.filter(e=>inviteState(e).k==="flag"); const plan=weekPlan(w);
   app.innerHTML=`
@@ -518,7 +520,7 @@ function parseList(text, defDate){
 const picksWeek = () => weekRange(1).from;
 const picksFor = from => (S.weeks[from]?.picks||[]);
 function pickOnRoster(p, w){ const d=digits(p.phone), n=(p.name||"").trim().toLowerCase();
-  return escorts().find(e=>!["can"].includes(status(e).k) && ((d && digits(e.phone)===d) || (n && (e.name||"").trim().toLowerCase()===n)) && (inWeek(e.arriveAt,w) || weekPlan(w).staying.some(x=>x.id===e.id))); }
+  return escorts().find(e=>!["can"].includes(status(e).k) && ((d && digits(e.phone)===d) || (n && (e.name||"").trim().toLowerCase()===n)) && (inArrWeek(e.arriveAt,w) || weekPlan(w).staying.some(x=>x.id===e.id))); }
 async function savePicks(from, picks){ const cur=S.weeks[from]||{}; await save("weeks", from, {...cur, picks, picksUpdatedAt:new Date().toISOString()}); }
 async function togglePick(poolId){
   const from=picksWeek(), picks=[...picksFor(from)], i=picks.findIndex(x=>x.poolId===poolId);
@@ -1435,7 +1437,7 @@ async function exportPDF(){
     section("On site now");
     table(["Escort","Phone","Arrived","Expected departure","Room","Partner"], all.filter(e=>status(e).k==="on").map(e=>[e.name,e.phone||"—",arrT(e),fDT(e.departAt)+(e.departBy==="escort"?" (self-reported)":""),e.roomId?roomLabel(S.rooms[e.roomId]):"Unassigned",partnerOf(e).map(x=>x.name).join(", ")||"Unassigned"]));
     section(`Coming next week · ${fD(nw.from)} – ${fD(nw.to)}`);
-    table(["Escort","Phone","Arrives","Room","Partner","Rental car"], all.filter(e=>inWeek(e.arriveAt,nw)).map(e=>{const c=carsFor(e)[0];return [e.name,e.phone||"—",arrT(e),e.roomId?roomLabel(S.rooms[e.roomId]):"To be assigned",partnerOf(e).map(x=>x.name).join(", ")||"To be assigned",hasRental(e)?"Yes":"—"]}));
+    table(["Escort","Phone","Arrives","Room","Partner","Rental car"], all.filter(e=>inArrWeek(e.arriveAt,nw)).map(e=>{const c=carsFor(e)[0];return [e.name,e.phone||"—",arrT(e),e.roomId?roomLabel(S.rooms[e.roomId]):"To be assigned",partnerOf(e).map(x=>x.name).join(", ")||"To be assigned",hasRental(e)?"Yes":"—"]}));
   }
   if($("#rp_mov").checked){
     section("Arrivals & departures");
@@ -1507,7 +1509,7 @@ document.addEventListener("click", ev=>{
     if(t.dataset.wkOpen!==undefined){ weekOff=+t.dataset.wkOpen; tab="week"; return render(); }
     if(t.dataset.wk){ weekOff = t.dataset.wk==="reset" ? 1 : weekOff+(+t.dataset.wk); return render(); }
     if(t.dataset.invite){ const e=S.escorts[t.dataset.invite]; return copyText(inviteText({id:t.dataset.invite,...e}), "Invite copied", [t.dataset.invite]); }
-    if(t.dataset.copyAll){ const w=weekRange(weekOff); const es=escorts().filter(e=>status(e).k!=="can"&&inWeek(e.arriveAt,w)); return copyText(es.map(inviteText).join("\n\n———\n\n"), `${es.length} invites copied`, es.filter(e=>!e.invitedAt).map(e=>e.id)); }
+    if(t.dataset.copyAll){ const w=weekRange(weekOff); const es=escorts().filter(e=>status(e).k!=="can"&&inArrWeek(e.arriveAt,w)); return copyText(es.map(inviteText).join("\n\n———\n\n"), `${es.length} invites copied`, es.filter(e=>!e.invitedAt).map(e=>e.id)); }
     if(t.dataset.markInv){ patch("escorts", t.dataset.markInv, {invitedAt:new Date().toISOString()}); return toast("Marked invited"); }
     const a=t.dataset.act;
     if(a==="newPool") return editPool();
