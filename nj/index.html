@@ -248,6 +248,7 @@ function merge(){
     const a=e.carInNameAdmin; if(a && (!m.carInName || (a.at||"")>=(m.carInName.at||""))) m.carInName={...a, byAdmin:true};
     out[id]=m;
   }
+  for(const [id,m] of Object.entries(out)){ if(m.needsRental){ const e={id,...m}; if(status(e).k==="on" && (m.carInName?.has || Object.values(S.cars||{}).some(c=>c.assignedTo===id))){ m.needsRental=false; m.rentalCovered=true; } } }
   S.escorts=out;
 }
 const isHR = e => { if(!e) return false; if(typeof e.hr218==="boolean") return e.hr218; const d=digits(e.phone); return !!(d && Object.values(S.pool).some(p=>digits(p.phone)===d && (p.groups||[]).includes("HR218"))); };
