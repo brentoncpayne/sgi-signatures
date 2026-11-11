@@ -522,7 +522,11 @@ function parseList(text, defDate){
 }
 
 /* ---------- Site Lead Picks (wish list for SOC) ---------- */
-const picksWeek = () => weekRange(1).from;
+let PICK_OFF=1;
+const picksWeek = () => weekRange(PICK_OFF).from;
+const weekOfFrom = from => { for(let o=-2;o<20;o++){ const w=weekRange(o); if(w.from===from) return w; } return {from, to:addDays(from,5)}; };
+const pickWeekLabel = o => o===1?"next week":o===2?"in 2 weeks":`in ${o} weeks`;
+function futurePickWeeks(){ return Object.keys(S.weeks).filter(k=>k>=weekRange(1).from && picksFor(k).length).sort(); }
 const picksFor = from => (S.weeks[from]?.picks||[]);
 function pickOnRoster(p, w){ const d=digits(p.phone), n=(p.name||"").trim().toLowerCase();
   return escorts().find(e=>!["can"].includes(status(e).k) && ((d && digits(e.phone)===d) || (n && (e.name||"").trim().toLowerCase()===n)) && (inArrWeek(e.arriveAt,w) || weekPlan(w).staying.some(x=>x.id===e.id))); }
@@ -535,7 +539,7 @@ async function togglePick(poolId){
   await savePicks(from,picks); toast(`${p.name||"Pick"} added to Site Lead Picks`);
 }
 function picksText(from){
-  const w={from, to:weekRange(1).to}, ps=picksFor(from), st=S.site;
+  const w=weekOfFrom(from), ps=picksFor(from), st=S.site;
   return `SITE LEAD PICKS — ${st.siteName||"New Jersey"} site, week of ${fD(from)}\nRequested by ${st.siteLead||"site lead"}. Wish list only; final staffing is SOC's call.\n`+
     ps.map((p,i)=>`${i+1}. ${p.name}${p.phone?` (${p.phone})`:""}${p.hr218?" · HR218":""}${p.needsRental?" · NEEDS RENTAL":""}${p.note?` — ${p.note}`:""}`).join("\n")+(()=>{ const pl=weekPlan(w), r=ps.filter(p=>p.needsRental).length; const lines=[]; if(pl.needed!=null) lines.push(`Escorts needed: ${pl.needed}${pl.open>0?` (${pl.open} still open)`:""}`); const ra=pl.arriving.filter(needsRent); if(ra.length) lines.push(`Confirmed arrivals needing a rental: ${ra.map(e=>e.name).join(", ")}`); if(pl.rentNeeded!=null||r||ra.length) lines.push(`Rentals needed: ${pl.rentNeeded!=null?pl.rentNeeded:r+ra.length}`); return lines.length?"\n\n"+lines.join("\n"):""; })();
 }
@@ -582,8 +586,10 @@ async function confirmPick(i){
 }
 
 function picksHTML(){
-  const from=picksWeek(), w=weekRange(1), ps=picksFor(from), plan=weekPlan(w);
-  return `<div class="panel"><div class="hd"><h3>Site Lead Picks · week of ${fD(from)}</h3><span class="note">Your wish list for SOC. SOC makes the final call.</span><div class="spacer"></div>${ps.length?`<button class="btn sm" data-picks-copy="1">Copy for SOC</button>`:""}<button class="btn sm" data-tab-go="pool">Add from staffing pool</button></div><div class="bd" style="display:grid;gap:10px">
+  const from=picksWeek(), w=weekRange(PICK_OFF), ps=picksFor(from), plan=weekPlan(w);
+  const later=futurePickWeeks().filter(k=>k!==from);
+  return `<div class="panel"><div class="hd"><h3>Site Lead Picks</h3>
+    <div class="wkbar" style="gap:6px"><button class="btn sm" data-pick-wk="-1" ${PICK_OFF<=1?"disabled":""} aria-label="Earlier week">◀</button><b class="mono">Week of ${fD(from)}</b><span class="note">(${pickWeekLabel(PICK_OFF)})</span><button class="btn sm" data-pick-wk="1" ${PICK_OFF>=8?"disabled":""} aria-label="Later week">▶</button></div><div class="spacer"></div>${ps.length?`<button class="btn sm" data-picks-copy="1">Copy for SOC</button>`:""}<button class="btn sm" data-tab-go="pool">Add from staffing pool</button></div><div class="bd" style="display:grid;gap:10px">
     ${ps.length?`<div class="tbl-wrap"><table><thead><tr><th>#</th><th>Escort</th><th>Rental</th><th>Note for SOC</th><th>SOC decision</th><th></th></tr></thead><tbody>
     ${ps.map((p,i)=>{ const on=pickOnRoster(p,w); return `<tr><td class="mono">${i+1}</td><td><b>${esc(p.name)}</b>${p.hr218?'<span class="pill p-grp" style="margin-left:6px">HR218</span>':""}${p.phone?`<div class="note mono">${esc(p.phone)}</div>`:""}</td>
       <td><label class="check" style="white-space:nowrap"><input type="checkbox" data-pick-rent="${i}" ${p.needsRental?"checked":""}> Needs rental</label></td>
@@ -591,8 +597,10 @@ function picksHTML(){
       <td>${on?'<span class="pill p-on">On the roster</span>':`<span class="pill p-exp">Waiting on SOC</span> <button class="btn sm primary" data-pick-confirm="${i}">SOC confirmed</button>`}</td>
       <td style="white-space:nowrap"><button class="btn sm" data-pick-move="${i}:-1" ${i===0?"disabled":""} aria-label="Move up">▲</button> <button class="btn sm" data-pick-move="${i}:1" ${i===ps.length-1?"disabled":""} aria-label="Move down">▼</button> <button class="btn sm danger" data-pick-del="${i}">Remove</button></td></tr>`; }).join("")}
     </tbody></table></div>
-    <p class="note" style="margin:0">${ps.filter(p=>pickOnRoster(p,w)).length} of ${ps.length} picks are on next week's roster. ${ps.filter(p=>p.needsRental).length} need a rental.${plan.needed!=null?` SOC needs ${plan.needed} next week; ${plan.open>0?`${plan.open} still open.`:"fully staffed."}`:""}</p>`
-    : `<p class="muted" style="margin:0">No picks yet. On the Staffing pool tab, tap ☆ beside the escorts you'd like back next week.</p>`}
+    <p class="note" style="margin:0">${ps.filter(p=>pickOnRoster(p,w)).length} of ${ps.length} picks are on that week's roster. ${ps.filter(p=>p.needsRental).length} need a rental.${plan.needed!=null?` SOC needs ${plan.needed} that week; ${plan.open>0?`${plan.open} still open.`:"fully staffed."}`:""}</p>`
+    : `<p class="muted" style="margin:0">No picks for this week yet. On the Staffing pool tab, tap ☆ beside the escorts you want. Picks go to the week shown here; use ◀ ▶ to pick for a later week.</p>`}
+    ${later.length?`<p class="note" style="margin:0">Also picked: ${later.map(k=>`<a href="#" data-pick-goto="${k}">week of ${fD(k)} (${picksFor(k).length})</a>`).join(" · ")}</p>`:""}
+    <p class="note" style="margin:0">Your wish list for SOC. SOC makes the final call.</p>
   </div></div>`;
 }
 
@@ -638,7 +646,7 @@ function rPool(app){
     <td>${(p.groups||[]).map(g=>`<span class="pill p-grp">${esc(g)}</span>`).join(" ")}</td>
     <td>${p.on?`<a href="#" data-edit-escort="${p.on.id}" style="color:inherit">${pill(p.on)}</a>`:'<span class="muted">—</span>'}</td>
     <td class="note">${esc(p.notes||"")}</td>
-    <td style="white-space:nowrap"><button class="btn sm ${picksFor(picksWeek()).some(x=>x.poolId===p.id)?"primary":""}" data-pick-toggle="${p.id}" title="Site Lead Pick for next week" aria-label="Site Lead Pick">${picksFor(picksWeek()).some(x=>x.poolId===p.id)?"★ Picked":"☆ Pick"}</button> <button class="btn sm" data-pool-edit="${p.id}">Edit</button>${p.on&&!["out","can"].includes(status(p.on).k)?"":` <button class="btn sm" data-pool-add="${p.id}">Add</button>`}</td></tr>`).join("")}
+    <td style="white-space:nowrap"><button class="btn sm ${picksFor(picksWeek()).some(x=>x.poolId===p.id)?"primary":""}" data-pick-toggle="${p.id}" title="Site Lead Pick for the week of ${fD(picksWeek())}" aria-label="Site Lead Pick">${picksFor(picksWeek()).some(x=>x.poolId===p.id)?"★ Picked":"☆ Pick"}</button> <button class="btn sm" data-pool-edit="${p.id}">Edit</button>${p.on&&!["out","can"].includes(status(p.on).k)?"":` <button class="btn sm" data-pool-add="${p.id}">Add</button>`}</td></tr>`).join("")}
   </tbody></table></div>`:`<div class="empty-state"><strong>${all.length?"Nobody matches":"The staffing pool is empty"}</strong><span>${all.length?"Change the search or filters.":"Add people you can staff from."}</span></div>`}</div>`;
   const pq=$("#pq"); pq.oninput=()=>{ P.q=pq.value; const pos=pq.selectionStart; dirty=false; render(); const n=$("#pq"); n.focus(); try{n.setSelectionRange(pos,pos)}catch(e){} };
   $("#pgrp").onchange=e=>{ P.grp=e.target.value; render(); };
@@ -1133,7 +1141,7 @@ function rReport(app){
       <label class="f">To<input type="date" id="rpTo" value="${esc(st.periodEnd||"")}"></label>
     </div>
     <div style="display:grid;gap:6px">
-      ${[["sum","Summary"],["picks","Site Lead Picks (next week)"],["wk","On site now & coming next week"],["mov","Arrivals & departures"],["ros","Full roster"],["lod","Lodging (rooms)"],["veh","Rental cars"],["tm","Partner teams"]].map(([k,l])=>`<label class="check"><input type="checkbox" id="rp_${k}" checked> ${l}</label>`).join("")}
+      ${[["sum","Summary"],["picks","Site Lead Picks (upcoming weeks)"],["wk","On site now & coming next week"],["mov","Arrivals & departures"],["ros","Full roster"],["lod","Lodging (rooms)"],["veh","Rental cars"],["tm","Partner teams"]].map(([k,l])=>`<label class="check"><input type="checkbox" id="rp_${k}" checked> ${l}</label>`).join("")}
     </div>
     <label class="f">Remarks for SOC (optional)<textarea id="rpNotes" placeholder="Anything SOC should know about this period">${esc(st.reportNotes||"")}</textarea></label>
     <div class="row"><button class="btn primary" id="rpGo">Export PDF</button><span class="note" id="rpMsg"></span></div>
@@ -1433,10 +1441,12 @@ async function exportPDF(){
     if(notes){ doc.setFont("helvetica","bold"); doc.setFontSize(9); doc.text("Site lead remarks",M,y); y+=12; doc.setFont("helvetica","normal"); const ln=doc.splitTextToSize(notes,W-2*M); doc.text(ln,M,y); y+=ln.length*11+14; }
   }
   if($("#rp_picks").checked){
-    const nw=weekRange(1), ps=picksFor(nw.from);
+    const wks=[...new Set([weekRange(1).from, ...futurePickWeeks()])].sort();
+    for(const wf of wks){ const nw=weekOfFrom(wf), ps=picksFor(wf);
     section(`Site Lead Picks · week of ${fD(nw.from)} – ${fD(nw.to)}`);
-    doc.setFont("helvetica","italic"); doc.setFontSize(8.5); doc.setTextColor(90,104,120); doc.text("Site lead's requested escorts for next week, in order of preference. Wish list only; final staffing is SOC's decision.",M,y); y+=12; doc.setTextColor(20,32,46);
+    doc.setFont("helvetica","italic"); doc.setFontSize(8.5); doc.setTextColor(90,104,120); doc.text("Site lead's requested escorts for this week, in order of preference. Wish list only; final staffing is SOC's decision.",M,y); y+=12; doc.setTextColor(20,32,46);
     table(["#","Escort","Phone","HR218","Needs rental","Site lead note","Status"], ps.map((p,i)=>[i+1,p.name,p.phone||"—",p.hr218?"Yes":"—",p.needsRental?"Yes":"—",p.note||"—",pickOnRoster(p,nw)?"On roster":"Waiting on SOC"]));
+    }
   }
   if($("#rp_wk").checked){
     const nw=weekRange(1);
@@ -1498,12 +1508,14 @@ document.addEventListener("change", ev=>{ const nr=ev.target.closest("[data-need
 document.addEventListener("change", ev=>{ const d=ev.target.closest("[data-bk-date]"); if(!d) return; dirty=false; const rid=d.dataset.bkDate; patch("rooms", rid, {bookedUntil:d.value}).then(()=>toast(d.value?`${roomLabel(S.rooms[rid])}: booked until ${fD(d.value)}`:`${roomLabel(S.rooms[rid])}: date cleared`)); });
 document.addEventListener("click", ev=>{
   const tx=ev.target.closest("[data-texted]"); if(tx){ const id=tx.dataset.texted; if(!R.escorts[id]?.invitedAt) patch("escorts", id, {invitedAt:new Date().toISOString()}); toast("Opening Messages…"); return; }
-  const t=ev.target.closest("[data-pick-confirm],[data-pick-toggle],[data-picks-copy],[data-pick-move],[data-pick-del],[data-ext-copy],[data-del-escort],[data-fd-copy],[data-serviced],[data-wk-save],[data-wk-edit],[data-wk-open],[data-pool-edit],[data-pool-add],[data-wk],[data-invite],[data-mark-inv],[data-copy-all],[data-act],[data-edit-escort],[data-edit-room],[data-edit-car],[data-edit-team],[data-pick],[data-copy],[data-tab],[data-tab-go]");
+  const t=ev.target.closest("[data-pick-wk],[data-pick-goto],[data-pick-confirm],[data-pick-toggle],[data-picks-copy],[data-pick-move],[data-pick-del],[data-ext-copy],[data-del-escort],[data-fd-copy],[data-serviced],[data-wk-save],[data-wk-edit],[data-wk-open],[data-pool-edit],[data-pool-add],[data-wk],[data-invite],[data-mark-inv],[data-copy-all],[data-act],[data-edit-escort],[data-edit-room],[data-edit-car],[data-edit-team],[data-pick],[data-copy],[data-tab],[data-tab-go]");
   if(!t) return;
   if(t.matches("a")) ev.preventDefault();
   if(t.dataset.tab||t.dataset.tabGo){ tab=t.dataset.tab||t.dataset.tabGo; ls.set("njsb_tab",tab); return render(); }
   if(viewMode==="admin"){
     if(t.dataset.delEscort){ const id=t.dataset.delEscort; if(DEL_ARM!==id){ DEL_ARM=id; dirty=false; render(); setTimeout(()=>{ if(DEL_ARM===id){ DEL_ARM=""; render(); } },5000); return; } DEL_ARM=""; return removeEscort(id); }
+    if(t.dataset.pickWk){ PICK_OFF=Math.max(1,Math.min(8,PICK_OFF+(+t.dataset.pickWk))); return render(); }
+    if(t.dataset.pickGoto){ for(let o=1;o<=8;o++) if(weekRange(o).from===t.dataset.pickGoto){ PICK_OFF=o; break; } return render(); }
     if(t.dataset.pickConfirm!==undefined) return confirmPick(+t.dataset.pickConfirm);
     if(t.dataset.pickToggle) return togglePick(t.dataset.pickToggle);
     if(t.dataset.picksCopy) return copyText(picksText(picksWeek()), "Site Lead Picks copied", []);
