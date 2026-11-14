@@ -306,26 +306,49 @@ const invPill = e => { const i=inviteState(e); return `<span class="pill p-${i.k
 function smsHref(e){ const d=digits(e.phone); if(d.length!==10) return ""; return `sms:+1${d}?&body=${encodeURIComponent(inviteText(e))}`; }
 const textBtn = e => { const h=smsHref(e); return h ? `<a class="btn sm primary" href="${h}" data-texted="${e.id}">Text invite</a>` : `<span class="note">No phone</span>`; };
 function leadTag(){ const st=S.site; return {n:st.siteLead||"your Site Lead", p:st.siteLeadPhone?fmtPhone(st.siteLeadPhone):""}; }
-function inviteText(e){ const st=S.site, L=leadTag(); return `Hi ${e.name}, welcome to the ${st.siteName||"New Jersey"} site and thank you for your support! This is ${L.n}, ${st.siteLeadTitle||"Site Lead"} with ${st.client||"SGI"}. You're on the roster, arriving ${arrT(e)}.
+function inviteText(e){ const st=S.site, L=leadTag(); return `Hi ${e.name}, welcome to the ${st.siteName||"New Jersey"} site, and thank you for your support! This is ${L.n}, ${st.siteLeadTitle||"Site Lead"} with ${st.client||"SGI"}. You are on the roster, arriving ${arrT(e)}.
 
-Your private page (room, partner, team chat) is here, no login needed: ${linkFor(e.id)}
+Your private page (room, partner, team chat) is here. No login needed. Please keep the link to yourself:
+${linkFor(e.id)}
 
-Please open it right away. Read the hotel service rules at the top and tap "I have read and will follow these rules". Then enter your planned departure date and the longest you can stay if needed.${L.p?`
+Please open it right away, read the rules, and tap "I have read and will follow these rules." Then enter your planned departure date and the longest you can stay if needed, and keep it current. It helps with staffing and with keeping hotel bookings covered.
 
-Questions? Call or text ${L.n} at ${L.p}.`:""} Please keep the link to yourself. Thank you!`; }
+HOTEL SERVICE, PLEASE READ
+We are long-term guests, and our rooms are not serviced daily. That is part of what keeps our corporate rate in place. To keep it that way:
+1. Do NOT ask housekeeping or the front desk to service your room.
+2. Submit all service requests through the app. The Site Lead is the only one who communicates with hotel staff about service, which cuts down on confusion.
+3. It is fine to ask for extra towels or toiletries.
+4. Make your own bed every day.
+5. First thing each morning, put trash and dirty towels outside your door.
+6. Only request bed linens to be changed when the sheets are actually dirty, not daily.
+
+YOUR ROOMMATE
+You are sharing a room, so please be courteous and keep your things tidy.
+
+Questions? ${L.p?`Message me in the app, or call or text ${L.n} at ${L.p}.`:"Message me in the app."}
+
+Thank you for your professionalism and support. It makes a real difference.
+${L.n}${st.siteLeadTitle?`, ${st.siteLeadTitle}`:""}`; }
 function siteRulesHTML(e){ const L=leadTag(), ph=digits(L.p), ack=e&&e.rulesAckAt;
-  return `<div class="panel"><div class="hd"><h3>Site rules &amp; your Site Lead</h3></div><div class="bd" style="display:grid;gap:8px">
-    <p style="margin:0">Thank you for your support! We are long-term hotel guests, so rooms are <b>not</b> serviced daily. That is part of what keeps our corporate rate.</p>
-    <ul style="margin:0;padding-left:20px;display:grid;gap:4px">
-      <li><b>Do not ask housekeeping or the front desk to service your room.</b> Send every service request through this page. The Site Lead is the only one who speaks with hotel staff, which cuts down on confusion.</li>
-      <li>Extra towels or toiletries are fine to ask for.</li>
-      <li>Make your own bed every day. Put trash and dirty towels outside your door first thing in the morning.</li>
-      <li>Only request linen changes when the sheets are actually dirty, not daily.</li>
-      <li>Be courteous to your roommate and keep your things tidy.</li>
-      <li>Keep your departure date and the longest you can stay up to date below.</li>
-    </ul>
+  return `<div class="panel"><div class="hd"><h3>Site rules &amp; your Site Lead</h3></div><div class="bd" style="display:grid;gap:10px">
+    <p style="margin:0">Welcome to the team, and thank you for your support on this site!</p>
+    <div class="fieldset-title" style="font-size:13px">Hotel service: please read</div>
+    <p style="margin:0">We are long-term guests, and our rooms are <b>not</b> serviced daily. That is part of what keeps our corporate rate in place. To keep it that way:</p>
+    <ol style="margin:0;padding-left:22px;display:grid;gap:4px">
+      <li><b>Do not ask housekeeping or the front desk to service your room.</b></li>
+      <li>Submit all service requests through this page. The Site Lead is the only one who communicates with hotel staff about service, which cuts down on confusion.</li>
+      <li>It is fine to ask for extra towels or toiletries.</li>
+      <li>Make your own bed every day.</li>
+      <li>First thing each morning, put trash and dirty towels outside your door.</li>
+      <li>Only request bed linens to be changed when the sheets are actually dirty, not daily.</li>
+    </ol>
+    <div class="fieldset-title" style="font-size:13px">Your roommate</div>
+    <p style="margin:0">You are sharing a room, so please be courteous and keep your things tidy. A clean room is easier on both of you.</p>
+    <div class="fieldset-title" style="font-size:13px">Keep us updated</div>
+    <p style="margin:0">Use this page to tell the Site Lead your planned departure date and the longest you can stay if needed. Please keep it current. It helps with staffing and with keeping hotel bookings covered.</p>
     ${ack?`<div class="pill p-joined" style="justify-self:start">&#10003; You acknowledged these rules on ${fISO(ack)}</div>`:`<button class="btn primary" id="me_ack" style="justify-self:start">I have read and will follow these rules</button>`}
-    ${S.site.siteLead?`<div class="note">Site Lead: <b>${esc(S.site.siteLead)}</b>${ph.length===10?` &middot; <a href="tel:+1${ph}">${esc(L.p)}</a> &middot; <a href="sms:+1${ph}">Text</a>`:""}</div>`:""}
+    <p style="margin:0">Questions? Message the Site Lead below${ph.length===10?`, or call or text ${esc(S.site.siteLead||"")} at <a href="tel:+1${ph}">${esc(L.p)}</a> (<a href="sms:+1${ph}">Text</a>)`:""}.</p>
+    <p style="margin:0">Thank you for your professionalism and support. It makes a real difference.${S.site.siteLead?`<br><b>${esc(S.site.siteLead)}</b>, ${esc(S.site.siteLeadTitle||"Site Lead")}`:""}</p>
   </div></div>`; }
 /* ---------- derived ---------- */
 const list = k => Object.entries(S[k]).map(([id,v]) => ({id,...v}));
