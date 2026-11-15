@@ -1140,7 +1140,7 @@ function rChat(app){
       </div></div>
     </div></div>`;
   const ta=$("#gtBody"), go=$("#gtGo"), sync=()=>{ if(on.length) go.href=groupSmsHref(ta.value); };
-    $("#gtCopy").onclick=()=>{ const t=on.map(e=>fmtPhone(e.phone)).join(", "); (navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject()).then(()=>toast("Numbers copied. Paste them in the To field."),()=>prompt("Copy these numbers:",t)); };
+    $("#gtCopy").onclick=()=>{ const t=on.map(e=>fmtPhone(e.phone)).join("\n"); (navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject()).then(()=>toast("Numbers copied, one per line. Paste into the To field and press Enter."),()=>prompt("Copy these numbers:",t)); };
   ta.oninput=sync; $("#gtReset").onclick=()=>{ ta.value=groupText(); sync(); };
   $("#gtRooms").onclick=()=>{ const t=roomListText(); if(!t) return toast("No rooms to add"); ta.value=(ta.value.trim()+"\n\n"+t).trim(); sync(); };
   go.onclick=e=>{ if(!on.length){ e.preventDefault(); toast("No one on site has a phone saved"); } };
