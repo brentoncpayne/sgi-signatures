@@ -308,7 +308,9 @@ function onSiteList(){ return escorts().filter(e=>status(e).k==="on" && digits(e
 function groupText(){ const st=S.site, L=leadTag();
   return `Hi team, this is ${L.n}, ${st.siteLeadTitle||"Site Lead"} with ${st.client||"SGI"}. Thank you for your support on the ${st.siteName||"New Jersey"} site! Please open your personal page in the app, read the site rules at the top, and tap "I have read and will follow these rules." Keep your planned departure date and the longest you can stay up to date there too.${L.p?` Questions? Call or text ${L.n} at ${L.p}.`:""}`; }
 function noPhoneHere(){ return escorts().filter(e=>status(e).k==="on" && digits(e.phone).length!==10); }
-function groupSmsHref(body){ const l=onSiteList(); if(!l.length) return ""; return `sms:${l.map(e=>"+1"+digits(e.phone)).join(",")}?&body=${encodeURIComponent(body===undefined?groupText():body)}`; }
+const IS_IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform==="MacIntel" && navigator.maxTouchPoints>1);
+function groupSmsHref(body){ const l=onSiteList(); if(!l.length) return ""; const nums=l.map(e=>"+1"+digits(e.phone)), b=encodeURIComponent(body===undefined?groupText():body);
+  return IS_IOS ? `sms:/open?addresses=${nums.join(",")}&body=${b}` : `sms:${nums.join(",")}?body=${b}`; }
 const textBtn = e => { const h=smsHref(e); return h ? `<a class="btn sm primary" href="${h}" data-texted="${e.id}">Text invite</a>` : `<span class="note">No phone</span>`; };
 function leadTag(){ const st=S.site; return {n:st.siteLead||"your Site Lead", p:st.siteLeadPhone?fmtPhone(st.siteLeadPhone):""}; }
 function inviteText(e){ const st=S.site, L=leadTag(); return `Hi ${e.name}, this is ${L.n}, ${st.siteLeadTitle||"Site Lead"} with ${st.client||"SGI"}. Welcome to the ${st.siteName||"New Jersey"} site, and thank you for your support! You are on the roster, arriving ${arrT(e)}.
@@ -1125,7 +1127,7 @@ function rChat(app){
     <div class="panel"><div class="hd"><h3>Group text</h3><span class="note">Everyone on site · ${on.length}</span></div><div class="bd" style="display:grid;gap:10px">
       <p class="note" style="margin:0">Opens one text thread in your Messages app with everyone currently on site. Edit the message below first if you like, then tap the button. Replies go to the whole group.</p>
       <textarea id="gtBody" rows="7" aria-label="Message">${esc(groupText())}</textarea>
-      <div class="row"><a class="btn primary" id="gtGo" href="${on.length?groupSmsHref():"#"}">Open group text (${on.length})</a><button class="btn" id="gtRooms">Add room list</button><button class="btn" id="gtReset">Reset message</button></div>
+      <div class="row"><a class="btn primary" id="gtGo" href="${on.length?groupSmsHref():"#"}">Open group text (${on.length})</a><button class="btn" id="gtCopy">Copy numbers</button><button class="btn" id="gtRooms">Add room list</button><button class="btn" id="gtReset">Reset message</button></div>
       ${miss.length?`<div class="note">No phone saved, not included: <b>${esc(miss.map(e=>e.name).join(", "))}</b>.</div>`:""}
     </div></div>
     <div style="display:grid;gap:20px;align-content:start">
@@ -1138,6 +1140,7 @@ function rChat(app){
       </div></div>
     </div></div>`;
   const ta=$("#gtBody"), go=$("#gtGo"), sync=()=>{ if(on.length) go.href=groupSmsHref(ta.value); };
+    $("#gtCopy").onclick=()=>{ const t=on.map(e=>fmtPhone(e.phone)).join(", "); (navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject()).then(()=>toast("Numbers copied. Paste them in the To field."),()=>prompt("Copy these numbers:",t)); };
   ta.oninput=sync; $("#gtReset").onclick=()=>{ ta.value=groupText(); sync(); };
   $("#gtRooms").onclick=()=>{ const t=roomListText(); if(!t) return toast("No rooms to add"); ta.value=(ta.value.trim()+"\n\n"+t).trim(); sync(); };
   go.onclick=e=>{ if(!on.length){ e.preventDefault(); toast("No one on site has a phone saved"); } };
