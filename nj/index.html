@@ -203,7 +203,7 @@ textarea{min-height:64px;resize:vertical}
 const $ = (s, r=document) => r.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const uid = p => p + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
-const S = { escorts:{}, rooms:{}, cars:{}, teams:{}, site:{}, checkins:{}, chat:{}, pool:{}, weeks:{}, dm:{} };
+const S = { report:{}, escorts:{}, rooms:{}, cars:{}, teams:{}, site:{}, checkins:{}, chat:{}, pool:{}, weeks:{}, dm:{} };
 const P = { q:"", grp:"all", status:"avail", sel:new Set(), qs:false };
 const R = { escorts:{} };
 let ESCORT_ID=null, HALT="", MY_ROLE="", MY_EMAIL="", ROLES=[];
@@ -1218,6 +1218,7 @@ function rSettings(app){
     <label class="f">Site name<input id="s_siteName" value="${esc(st.siteName||"New Jersey")}"></label>
     <label class="f">Current site lead (name)<input id="s_siteLead" value="${esc(st.siteLead||"")}"></label>
     <label class="f">Site lead phone<input id="s_siteLeadPhone" inputmode="tel" placeholder="773-555-1234" value="${esc(st.siteLeadPhone||"")}"></label>
+    <label class="f">Daily room service email (5 AM)<input id="s_reportEmail" type="email" inputmode="email" placeholder="name@example.com" value="${esc(S.report.email||"")}"></label>
     <label class="f">Site lead title<input id="s_siteLeadTitle" value="${esc(st.siteLeadTitle||"Site Lead")}"></label>
     <label class="f">Period start<input type="date" id="s_periodStart" value="${esc(st.periodStart||"")}"></label>
     <label class="f">Period end<input type="date" id="s_periodEnd" value="${esc(st.periodEnd||"")}"></label>
@@ -1237,6 +1238,7 @@ function rSettings(app){
   </div></div>`;
   $("#s_save").onclick=async()=>{
     const f=k=>$("#s_"+k).value.trim();
+    try{ await db.doc("config/report").set({email:f("reportEmail")}); }catch(e){}
     await patchSite({siteName:f("siteName"),siteLead:f("siteLead"),siteLeadTitle:f("siteLeadTitle"),siteLeadPhone:fmtPhone(f("siteLeadPhone")),periodStart:f("periodStart"),periodEnd:f("periodEnd"),linkBase:(f("linkBase")&&!/^https?:\/\//.test(f("linkBase"))?"https://":"")+f("linkBase"),companyName:f("companyName"),client:f("client"),brandColor:$("#s_brandColor").value,weekStart:+$("#s_weekStart").value,weekStartSet:true,serviceEvery:+($("#s_serviceEvery").value||0)});
   };
   $("#s_signout").onclick=async()=>{ await window.__sb.auth.signOut(); location.hash=""; location.reload(); };
@@ -1667,6 +1669,7 @@ function wireStore(){
   db.collection("dm").onSnapshot(snap=>{ S.dm={}; snap.docs.forEach(d=>S.dm[d.id]=d.data()); const open=isAdmin?DM_OPEN:ESCORT_ID; if($("#dmLog")&&open) updateDMLog(open); else if(isAdmin && tab==="dm") sched(); else renderHeader(); });
   db.collection("checkins").onSnapshot(snap=>{ S.checkins={}; snap.docs.forEach(d=>S.checkins[d.id]=d.data()); merge(); sched(); });
   db.doc("config/site").onSnapshot(d=>{ S.site=d.exists? d.data(): {}; sched(); });
+  if(isAdmin) db.doc("config/report").onSnapshot(d=>{ S.report=d.exists? d.data(): {}; });
 }
 
 function loginScreen(sb, msg, mode){
