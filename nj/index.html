@@ -185,7 +185,7 @@ textarea{min-height:64px;resize:vertical}
   <button class="tab" data-tab="pool">Staffing pool</button>
   <button class="tab" data-tab="escorts">Escorts</button>
   <button class="tab" data-tab="rooms">Hotel rooms</button>
-  <button class="tab" data-tab="chat" id="chatTab">Site chat</button>
+  <button class="tab" data-tab="chat" id="chatTab">Group text</button>
   <button class="tab" data-tab="dm" id="dmTab">Messages</button>
   <button class="tab" data-tab="cars">Rental cars</button>
   <button class="tab" data-tab="teams">Partners</button>
@@ -308,7 +308,7 @@ function onSiteList(){ return escorts().filter(e=>status(e).k==="on" && digits(e
 function groupText(){ const st=S.site, L=leadTag();
   return `Hi team, this is ${L.n}, ${st.siteLeadTitle||"Site Lead"} with ${st.client||"SGI"}. Thank you for your support on the ${st.siteName||"New Jersey"} site! Please open your personal page in the app, read the site rules at the top, and tap "I have read and will follow these rules." Keep your planned departure date and the longest you can stay up to date there too.${L.p?` Questions? Call or text ${L.n} at ${L.p}.`:""}`; }
 function noPhoneHere(){ return escorts().filter(e=>status(e).k==="on" && digits(e.phone).length!==10); }
-function groupSmsHref(){ const l=onSiteList(); if(!l.length) return ""; return `sms:${l.map(e=>"+1"+digits(e.phone)).join(",")}?&body=${encodeURIComponent(groupText())}`; }
+function groupSmsHref(body){ const l=onSiteList(); if(!l.length) return ""; return `sms:${l.map(e=>"+1"+digits(e.phone)).join(",")}?&body=${encodeURIComponent(body===undefined?groupText():body)}`; }
 const textBtn = e => { const h=smsHref(e); return h ? `<a class="btn sm primary" href="${h}" data-texted="${e.id}">Text invite</a>` : `<span class="note">No phone</span>`; };
 function leadTag(){ const st=S.site; return {n:st.siteLead||"your Site Lead", p:st.siteLeadPhone?fmtPhone(st.siteLeadPhone):""}; }
 function inviteText(e){ const st=S.site, L=leadTag(); return `Hi ${e.name}, this is ${L.n}, ${st.siteLeadTitle||"Site Lead"} with ${st.client||"SGI"}. Welcome to the ${st.siteName||"New Jersey"} site, and thank you for your support! You are on the roster, arriving ${arrT(e)}.
@@ -392,7 +392,7 @@ function renderHeader(){
   $("#switchView").hidden = !isAdmin;
   $("#switchView").textContent = viewMode==="admin" ? "Escort preview" : "Back to admin";
   $("#tabs").hidden = viewMode!=="admin";
-  const un=unreadCount(); $("#chatTab").innerHTML = "Site chat" + (un&&!(viewMode==="admin"&&tab==="chat")?`<span class="unread">${un}</span>`:"");
+  
   const dun=isAdmin?dmUnreadTotal():0; $("#dmTab").innerHTML = "Messages" + (dun?`<span class="unread">${dun}</span>`:"");
   document.querySelectorAll(".tab").forEach(b=>b.setAttribute("aria-selected", b.dataset.tab===tab));
 }
@@ -823,7 +823,7 @@ function rRooms(app){
   </div>
   ${frontDeskHTML(false)}
   ${extensionsHTML(false)}
-  <div class="panel"><div class="hd"><h3>Room servicing</h3><div class="spacer"></div><button class="btn sm" id="svcPost">Post today's service list to chat</button></div><div class="bd">${housekeepingHTML()}</div></div>
+  <div class="panel"><div class="hd"><h3>Room servicing</h3><div class="spacer"></div><button class="btn sm" id="svcPost">Text today's service list to everyone here</button></div><div class="bd">${housekeepingHTML()}</div></div>
   <div class="panel"><div class="hd"><h2>Hotel rooms</h2><span class="muted">${rs.length} rooms · ${rs.reduce((n,r)=>n+roomOcc(r.id).length,0)} of ${rs.length*2} beds filled</span><div class="spacer"></div><button class="btn primary" data-act="newRoom">Add room</button></div>
   <div class="bd">${rs.length? hotels.map(h=>`<div style="display:grid;gap:10px;margin-bottom:18px"><h3>${esc(h)}</h3><div class="cards">${rs.filter(r=>(r.hotel||"Hotel")===h).map(r=>{const occ=roomBeds(r.id).filter(Boolean);return `
     <div class="rcard ${occ.length>=2?"full":""}"><div class="top"><span class="nm">Rm ${esc(r.number||"?")}</span><span class="pill ${occ.length>=2?"p-on":occ.length?"p-exp":"p-out"}">${occ.length}/2</span><button class="btn sm" data-edit-room="${r.id}">Edit</button></div>
@@ -835,7 +835,8 @@ function rRooms(app){
   $("#svcPost").onclick=()=>{ const t=todayYMD(); const rs=list("rooms").filter(r=>{const si=serviceInfo(r);return ["over","today"].includes(si.k);});
     openRequests().forEach(({room})=>{ if(room && !rs.find(x=>x.id===room.id)) rs.push({id:Object.keys(S.rooms).find(k=>S.rooms[k]===room),...room}); });
     if(!rs.length) return toast("No rooms are due for service today");
-    sendChat(`ROOM SERVICE TODAY (${fD(t)})\n`+rs.map(r=>`${roomLabel(r)} — ${roomOcc(r.id).filter(e=>status(e).k!=="out").map(e=>e.name).join(" & ")||"empty"}`).join("\n")+`\nPlease leave your room ready for housekeeping.`).then(ok=>ok&&toast("Posted to team chat")); };
+    const h=groupSmsHref(`ROOM SERVICE TODAY (${fD(t)})\n`+rs.map(r=>`${roomLabel(r)} - ${roomOcc(r.id).filter(e=>status(e).k!=="out").map(e=>e.name).join(" & ")||"empty"}`).join("\n")+`\nPlease leave your room ready for housekeeping.`);
+    if(!h) return toast("No one on site has a phone saved"); location.href=h; };
   app.querySelectorAll("[data-bed-room]").forEach(sel=>sel.onchange=()=>{ dirty=false; setBed(sel.dataset.bedRoom, +sel.dataset.bedI, sel.value); });
   app.querySelectorAll("[data-assign-room]").forEach(sel=>sel.onchange=async()=>{ const rid=sel.value; if(!rid) return; if(roomOcc(rid).length>=2) return toast("That room just filled up"); dirty=false; const bi=roomBeds(rid).indexOf(null); await patch("escorts", sel.dataset.assignRoom, {roomId:rid, bed:bi+1}); toast(`${name(sel.dataset.assignRoom)} → ${roomLabel(S.rooms[rid])}`); });
 }
@@ -1119,19 +1120,28 @@ async function sendChat(text){
   catch(e){ toast("Message not sent: "+(e.message||e.code)); return false; }
 }
 function rChat(app){
-  const on=onSiteEscorts();
+  const on=onSiteList(), miss=noPhoneHere();
   app.innerHTML=`<div class="grid2 chatgrid">
-    ${chatPanelHTML()}
+    <div class="panel"><div class="hd"><h3>Group text</h3><span class="note">Everyone on site · ${on.length}</span></div><div class="bd" style="display:grid;gap:10px">
+      <p class="note" style="margin:0">Opens one text thread in your Messages app with everyone currently on site. Edit the message below first if you like, then tap the button. Replies go to the whole group.</p>
+      <textarea id="gtBody" rows="7" aria-label="Message">${esc(groupText())}</textarea>
+      <div class="row"><a class="btn primary" id="gtGo" href="${on.length?groupSmsHref():"#"}">Open group text (${on.length})</a><button class="btn" id="gtRooms">Add room list</button><button class="btn" id="gtReset">Reset message</button></div>
+      ${miss.length?`<div class="note">No phone saved, not included: <b>${esc(miss.map(e=>e.name).join(", "))}</b>.</div>`:""}
+    </div></div>
     <div style="display:grid;gap:20px;align-content:start">
-      <div class="panel"><div class="hd"><h3>In this chat</h3></div><div class="bd">
-        ${on.length? `<div style="display:grid;gap:6px">${on.map(e=>`<div class="row"><b style="flex:1">${esc(e.name)}</b>${e.claimedBy?'<span class="pill p-joined">Can see chat</span>':'<span class="pill p-flag">Not joined</span>'}</div>`).join("")}</div>` : `<p class="muted" style="margin:0">Nobody is checked as on site yet.</p>`}
-        <p class="note" style="margin:10px 0 0">Membership follows the roster: escorts join when they're on site and drop off when they depart. Escorts marked "Not joined" haven't opened their page yet.</p>
+      <div class="panel"><div class="hd"><h3>In this text</h3></div><div class="bd">
+        ${on.length? `<div style="display:grid;gap:6px">${on.map(e=>`<div class="row"><b style="flex:1">${esc(e.name)}</b><span class="note mono">${esc(fmtPhone(e.phone))}</span></div>`).join("")}</div>` : `<p class="muted" style="margin:0">Nobody on site has a phone number saved yet.</p>`}
+        <p class="note" style="margin:10px 0 0">Membership follows the roster: escorts on site with a saved phone number.</p>
       </div></div>
       <div class="panel"><div class="hd"><h3>Who's in what room</h3></div><div class="bd" style="display:grid;gap:10px">
         <input id="dirQ" type="search" placeholder="Type a name or room number" aria-label="Search rooms"><div id="dirOut">${dirHTML("")}</div>
       </div></div>
     </div></div>`;
-  bindChat(); bindDir();
+  const ta=$("#gtBody"), go=$("#gtGo"), sync=()=>{ if(on.length) go.href=groupSmsHref(ta.value); };
+  ta.oninput=sync; $("#gtReset").onclick=()=>{ ta.value=groupText(); sync(); };
+  $("#gtRooms").onclick=()=>{ const t=roomListText(); if(!t) return toast("No rooms to add"); ta.value=(ta.value.trim()+"\n\n"+t).trim(); sync(); };
+  go.onclick=e=>{ if(!on.length){ e.preventDefault(); toast("No one on site has a phone saved"); } };
+  bindDir();
 }
 
 /* ---------- ADMIN: cars ---------- */
@@ -1410,7 +1420,6 @@ function renderEscortView(app){
 </dl>`), ...partnerReported.map(p=>`<dl class="kv"><dt>In name of</dt><dd><b>${p.__me?"You":esc(p.name)}</b></dd></dl>`)].join('<hr style="border:0;border-top:1px solid var(--line);margin:0">') :`<p class="muted" style="margin:0">No rental car in your or your partner's name.</p>`}</div></div>
     ${e.notes?`<div class="panel"><div class="hd"><h3>Notes from site lead</h3></div><div class="bd">${esc(e.notes)}</div></div>`:""}
     ${ESCORT_ID ? dmPanelHTML(ESCORT_ID, "Message your site lead") : ""}
-    ${mine?.escortId===e.id && chatAllowed() ? chatPanelHTML() : `<div class="panel"><div class="hd"><h3>NJ site chat</h3></div><div class="bd"><p class="muted" style="margin:0">${mine?.escortId===e.id ? "The site chat opens once you're checked in as on site." : "The site chat opens once you're on site."}</p></div></div>`}
     ${status(e).k==="on"?`<div class="panel"><div class="hd"><h3>Who's in what room</h3></div><div class="bd" style="display:grid;gap:10px"><input id="dirQ" type="search" placeholder="Type a name or room number" aria-label="Search rooms"><div id="dirOut">${dirHTML("")}</div></div></div>`:""}
     ${ESCORT_ID?"":`<button class="btn" data-pick="" style="justify-self:center">Preview another escort</button>`}
   </div>`;
