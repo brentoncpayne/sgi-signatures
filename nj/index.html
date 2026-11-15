@@ -1125,9 +1125,9 @@ function rChat(app){
   const on=onSiteList(), miss=noPhoneHere();
   app.innerHTML=`<div class="grid2 chatgrid">
     <div class="panel"><div class="hd"><h3>Group text</h3><span class="note">Everyone on site · ${on.length}</span></div><div class="bd" style="display:grid;gap:10px">
-      <p class="note" style="margin:0">Opens one text thread in your Messages app with everyone currently on site. Edit the message below first if you like, then tap the button. Replies go to the whole group.</p>
+      <p class="note" style="margin:0">Tap the button: the numbers are copied (one per line) and a new message opens with your text filled in. Paste the numbers into the To field, press Enter, then send. Edit the message below first if you like. Replies go to the whole group.</p>
       <textarea id="gtBody" rows="7" aria-label="Message">${esc(groupText())}</textarea>
-      <div class="row"><a class="btn primary" id="gtGo" href="${on.length?groupSmsHref():"#"}">Open group text (${on.length})</a><button class="btn" id="gtCopy">Copy numbers</button><button class="btn" id="gtRooms">Add room list</button><button class="btn" id="gtReset">Reset message</button></div>
+      <div class="row"><a class="btn primary" id="gtGo" href="#">Copy numbers &amp; open message (${on.length})</a><button class="btn" id="gtCopy">Copy numbers</button><button class="btn" id="gtRooms">Add room list</button><button class="btn" id="gtReset">Reset message</button></div>
       ${miss.length?`<div class="note">No phone saved, not included: <b>${esc(miss.map(e=>e.name).join(", "))}</b>.</div>`:""}
     </div></div>
     <div style="display:grid;gap:20px;align-content:start">
@@ -1139,11 +1139,14 @@ function rChat(app){
         <input id="dirQ" type="search" placeholder="Type a name or room number" aria-label="Search rooms"><div id="dirOut">${dirHTML("")}</div>
       </div></div>
     </div></div>`;
-  const ta=$("#gtBody"), go=$("#gtGo"), sync=()=>{ if(on.length) go.href=groupSmsHref(ta.value); };
+  const ta=$("#gtBody"), go=$("#gtGo"), sync=()=>{};
     $("#gtCopy").onclick=()=>{ const t=on.map(e=>fmtPhone(e.phone)).join("\n"); (navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject()).then(()=>toast("Numbers copied, one per line. Paste into the To field and press Enter."),()=>prompt("Copy these numbers:",t)); };
   ta.oninput=sync; $("#gtReset").onclick=()=>{ ta.value=groupText(); sync(); };
   $("#gtRooms").onclick=()=>{ const t=roomListText(); if(!t) return toast("No rooms to add"); ta.value=(ta.value.trim()+"\n\n"+t).trim(); sync(); };
-  go.onclick=e=>{ if(!on.length){ e.preventDefault(); toast("No one on site has a phone saved"); } };
+  go.onclick=e=>{ e.preventDefault(); if(!on.length) return toast("No one on site has a phone saved");
+    const nums=on.map(x=>fmtPhone(x.phone)).join("\n"), url="sms:&body="+encodeURIComponent(ta.value);
+    const open=()=>{ location.href=url; };
+    if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(nums).then(()=>{ toast("Numbers copied. Paste them in the To field."); setTimeout(open,700); },open); else open(); };
   bindDir();
 }
 
