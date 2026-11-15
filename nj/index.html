@@ -306,45 +306,18 @@ const invPill = e => { const i=inviteState(e); return `<span class="pill p-${i.k
 function smsHref(e){ const d=digits(e.phone); if(d.length!==10) return ""; return `sms:+1${d}?&body=${encodeURIComponent(inviteText(e))}`; }
 function onSiteList(){ return escorts().filter(e=>status(e).k==="on" && digits(e.phone).length===10); }
 function groupText(){ const st=S.site, L=leadTag();
-  return `Hi team, this is ${L.n}, ${st.siteLeadTitle||"Site Lead"} with ${st.client||"SGI"}. Thank you for your support on the ${st.siteName||"New Jersey"} site!
-
-A reminder on hotel service. We are long-term guests, and our rooms are not serviced daily. That is part of what keeps our corporate rate in place.
-1. Do NOT ask housekeeping or the front desk to service your room.
-2. Submit all service requests through the app. The Site Lead is the only one who communicates with hotel staff about service, which cuts down on confusion.
-3. It is fine to ask for extra towels or toiletries.
-4. Make your own bed every day.
-5. First thing each morning, put trash and dirty towels outside your door.
-6. Only request bed linens to be changed when the sheets are actually dirty, not daily.
-
-Please be courteous to your roommate and keep your things tidy. Keep your planned departure date and the longest you can stay up to date in the app, and tap "I have read and will follow these rules" on your personal page.
-
-Questions? ${L.p?`Call or text ${L.n} at ${L.p}.`:"Message me in the app."} Thank you!`; }
+  return `Hi team, this is ${L.n}, ${st.siteLeadTitle||"Site Lead"} with ${st.client||"SGI"}. Thank you for your support on the ${st.siteName||"New Jersey"} site! Please open your personal page in the app, read the site rules at the top, and tap "I have read and will follow these rules." Keep your planned departure date and the longest you can stay up to date there too.${L.p?` Questions? Call or text ${L.n} at ${L.p}.`:""}`; }
+function noPhoneHere(){ return escorts().filter(e=>status(e).k==="on" && digits(e.phone).length!==10); }
 function groupSmsHref(){ const l=onSiteList(); if(!l.length) return ""; return `sms:${l.map(e=>"+1"+digits(e.phone)).join(",")}?&body=${encodeURIComponent(groupText())}`; }
 const textBtn = e => { const h=smsHref(e); return h ? `<a class="btn sm primary" href="${h}" data-texted="${e.id}">Text invite</a>` : `<span class="note">No phone</span>`; };
 function leadTag(){ const st=S.site; return {n:st.siteLead||"your Site Lead", p:st.siteLeadPhone?fmtPhone(st.siteLeadPhone):""}; }
-function inviteText(e){ const st=S.site, L=leadTag(); return `Hi ${e.name}, welcome to the ${st.siteName||"New Jersey"} site, and thank you for your support! This is ${L.n}, ${st.siteLeadTitle||"Site Lead"} with ${st.client||"SGI"}. You are on the roster, arriving ${arrT(e)}.
+function inviteText(e){ const st=S.site, L=leadTag(); return `Hi ${e.name}, this is ${L.n}, ${st.siteLeadTitle||"Site Lead"} with ${st.client||"SGI"}. Welcome to the ${st.siteName||"New Jersey"} site, and thank you for your support! You are on the roster, arriving ${arrT(e)}.
 
-Your private page (room, partner, team chat) is here. No login needed. Please keep the link to yourself:
-${linkFor(e.id)}
+Your private page is here, no login needed: ${linkFor(e.id)}
 
-Please open it right away, read the rules, and tap "I have read and will follow these rules." Then enter your planned departure date and the longest you can stay if needed, and keep it current. It helps with staffing and with keeping hotel bookings covered.
+Please open it, read the site rules at the top, and tap "I have read and will follow these rules." Then enter your planned departure date and the longest you can stay if needed. Please keep the link to yourself.${L.p?`
 
-HOTEL SERVICE, PLEASE READ
-We are long-term guests, and our rooms are not serviced daily. That is part of what keeps our corporate rate in place. To keep it that way:
-1. Do NOT ask housekeeping or the front desk to service your room.
-2. Submit all service requests through the app. The Site Lead is the only one who communicates with hotel staff about service, which cuts down on confusion.
-3. It is fine to ask for extra towels or toiletries.
-4. Make your own bed every day.
-5. First thing each morning, put trash and dirty towels outside your door.
-6. Only request bed linens to be changed when the sheets are actually dirty, not daily.
-
-YOUR ROOMMATE
-You are sharing a room, so please be courteous and keep your things tidy.
-
-Questions? ${L.p?`Message me in the app, or call or text ${L.n} at ${L.p}.`:"Message me in the app."}
-
-Thank you for your professionalism and support. It makes a real difference.
-${L.n}${st.siteLeadTitle?`, ${st.siteLeadTitle}`:""}`; }
+Questions? Call or text ${L.n} at ${L.p}.`:""}`; }
 function siteRulesHTML(e){ const L=leadTag(), ph=digits(L.p), ack=e&&e.rulesAckAt;
   return `<div class="panel"><div class="hd"><h3>Site rules &amp; your Site Lead</h3></div><div class="bd" style="display:grid;gap:10px">
     <p style="margin:0">Welcome to the team, and thank you for your support on this site!</p>
@@ -805,7 +778,7 @@ function rAccess(app){
 function rEscorts(app){
   const es=escorts();
   app.innerHTML=`<div class="panel"><div class="hd"><h3>Quick setup</h3><span class="note">Set everyone's room, team and rental in one place</span><div class="spacer"></div><button class="btn sm" id="qsToggle">${P.qs?"Hide":"Show"}</button></div>${P.qs?`<div class="bd">${quickSetupHTML(es)}</div>`:""}</div>
-  <div class="panel"><div class="hd"><h2>Escort roster</h2><span class="muted">${es.length} total</span><div class="spacer"></div>${groupSmsHref()?`<a class="btn" href="${groupSmsHref()}" title="Opens one group text to everyone currently on site">Text everyone here (${onSiteList().length})</a> `:""}<button class="btn primary" data-act="newEscort">Add escort</button></div>
+  <div class="panel"><div class="hd"><h2>Escort roster</h2><span class="muted">${es.length} total</span><div class="spacer"></div>${groupSmsHref()?`<a class="btn" href="${groupSmsHref()}" title="Opens one group text to everyone currently on site">Text everyone here (${onSiteList().length} of ${onSiteList().length+noPhoneHere().length})</a> `:""}<button class="btn primary" data-act="newEscort">Add escort</button></div>${noPhoneHere().length?`<div class="note" style="padding:0 16px 8px">Not in the group text, no phone saved: <b>${esc(noPhoneHere().map(e=>e.name).join(", "))}</b>. Tap a name to add a phone number.</div>`:""}
   ${es.length? `<div class="tbl-wrap"><table><thead><tr><th>Name</th><th>Status</th><th>Arrives</th><th>Departs</th><th>Room</th><th>Roommate</th><th>Partner</th><th>Rental car in name</th><th>Invite</th><th></th></tr></thead><tbody>
   ${es.map(e=>{const car=carsFor(e)[0];return `<tr class="click" data-edit-escort="${e.id}">
     <td><b>${esc(e.name)}</b>${hrPill(e)}${nrPill(e)}${e.phone?`<div class="note mono">${esc(e.phone)}</div>`:""}</td><td>${pill(e)}</td>
