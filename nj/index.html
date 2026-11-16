@@ -190,6 +190,7 @@ textarea{min-height:64px;resize:vertical}
   <button class="tab" data-tab="cars">Rental cars</button>
   <button class="tab" data-tab="teams">Partners</button>
   <button class="tab" data-tab="report">SOC report</button>
+  <button class="tab" data-tab="rules">Site rules</button>
   <button class="tab" data-tab="settings">Site settings</button>
   <button class="tab" data-tab="access" id="accessTab" hidden>Team access</button>
 </div></nav>
@@ -320,27 +321,59 @@ Your private page is here, no login needed: ${linkFor(e.id)}
 Please open it, read the site rules at the top, and tap "I have read and will follow these rules." Then enter your planned departure date and the longest you can stay if needed. Please keep the link to yourself.${L.p?`
 
 Questions? Call or text ${L.n} at ${L.p}.`:""}`; }
+const DEFAULT_RULES=`Welcome to the team, and thank you for your support on this site!
+
+## Hotel service: please read
+We are long-term guests, and our rooms are **not** serviced daily. That is part of what keeps our corporate rate in place. To keep it that way:
+1. **Do not ask housekeeping or the front desk to service your room.**
+2. Submit all service requests through this page. The Site Lead is the only one who communicates with hotel staff about service, which cuts down on confusion.
+3. It is fine to ask for extra towels or toiletries.
+4. Make your own bed every day.
+5. First thing each morning, put trash and dirty towels outside your door.
+6. Only request bed linens to be changed when the sheets are actually dirty, not daily.
+
+## Your roommate
+You are sharing a room, so please be courteous and keep your things tidy. A clean room is easier on both of you.
+
+## Keep us updated
+Use this page to tell the Site Lead your planned departure date and the longest you can stay if needed. Please keep it current. It helps with staffing and with keeping hotel bookings covered.`;
+const DEFAULT_CLOSING="Thank you for your professionalism and support. It makes a real difference.";
+const rulesText = () => (S.site.rulesText!=null && String(S.site.rulesText).trim()) ? S.site.rulesText : DEFAULT_RULES;
+const rulesClosing = () => S.site.rulesClosing!=null ? S.site.rulesClosing : DEFAULT_CLOSING;
+function renderRules(txt){
+  const inl=t=>esc(t).replace(/\*\*(.+?)\*\*/g,"<b>$1</b>");
+  const out=[]; let list=null;
+  const flush=()=>{ if(list){ out.push(`<${list.t} style="margin:0;padding-left:22px;display:grid;gap:4px">${list.i.map(x=>`<li>${inl(x)}</li>`).join("")}</${list.t}>`); list=null; } };
+  for(const raw of String(txt||"").split(/\r?\n/)){ const l=raw.trim();
+    if(!l){ flush(); continue; }
+    let m;
+    if((m=l.match(/^##\s+(.*)$/))){ flush(); out.push(`<div class="fieldset-title" style="font-size:13px">${inl(m[1])}</div>`); }
+    else if((m=l.match(/^\d+[.)]\s+(.*)$/))){ if(!list||list.t!=="ol"){ flush(); list={t:"ol",i:[]}; } list.i.push(m[1]); }
+    else if((m=l.match(/^[-*]\s+(.*)$/))){ if(!list||list.t!=="ul"){ flush(); list={t:"ul",i:[]}; } list.i.push(m[1]); }
+    else { flush(); out.push(`<p style="margin:0">${inl(l)}</p>`); } }
+  flush(); return out.join("");
+}
 function siteRulesHTML(e){ const L=leadTag(), ph=digits(L.p), ack=e&&e.rulesAckAt;
   return `<div class="panel"><div class="hd"><h3>Site rules &amp; your Site Lead</h3></div><div class="bd" style="display:grid;gap:10px">
-    <p style="margin:0">Welcome to the team, and thank you for your support on this site!</p>
-    <div class="fieldset-title" style="font-size:13px">Hotel service: please read</div>
-    <p style="margin:0">We are long-term guests, and our rooms are <b>not</b> serviced daily. That is part of what keeps our corporate rate in place. To keep it that way:</p>
-    <ol style="margin:0;padding-left:22px;display:grid;gap:4px">
-      <li><b>Do not ask housekeeping or the front desk to service your room.</b></li>
-      <li>Submit all service requests through this page. The Site Lead is the only one who communicates with hotel staff about service, which cuts down on confusion.</li>
-      <li>It is fine to ask for extra towels or toiletries.</li>
-      <li>Make your own bed every day.</li>
-      <li>First thing each morning, put trash and dirty towels outside your door.</li>
-      <li>Only request bed linens to be changed when the sheets are actually dirty, not daily.</li>
-    </ol>
-    <div class="fieldset-title" style="font-size:13px">Your roommate</div>
-    <p style="margin:0">You are sharing a room, so please be courteous and keep your things tidy. A clean room is easier on both of you.</p>
-    <div class="fieldset-title" style="font-size:13px">Keep us updated</div>
-    <p style="margin:0">Use this page to tell the Site Lead your planned departure date and the longest you can stay if needed. Please keep it current. It helps with staffing and with keeping hotel bookings covered.</p>
+    ${renderRules(rulesText())}
     ${ack?`<div class="pill p-joined" style="justify-self:start">&#10003; You acknowledged these rules on ${fISO(ack)}</div>`:`<button class="btn primary" id="me_ack" style="justify-self:start">I have read and will follow these rules</button>`}
     <p style="margin:0">Questions? Message the Site Lead below${ph.length===10?`, or call or text ${esc(S.site.siteLead||"")} at <a href="tel:+1${ph}">${esc(L.p)}</a> (<a href="sms:+1${ph}">Text</a>)`:""}.</p>
-    <p style="margin:0">Thank you for your professionalism and support. It makes a real difference.${S.site.siteLead?`<br><b>${esc(S.site.siteLead)}</b>, ${esc(S.site.siteLeadTitle||"Site Lead")}`:""}</p>
+    ${rulesClosing()?`<p style="margin:0">${esc(rulesClosing())}${S.site.siteLead?`<br><b>${esc(S.site.siteLead)}</b>, ${esc(S.site.siteLeadTitle||"Site Lead")}`:""}</p>`:""}
   </div></div>`; }
+function rRules(app){
+  app.innerHTML=`<div class="grid2 chatgrid">
+    <div class="panel"><div class="hd"><h2>Site rules</h2><span class="note">What escorts read on their page</span></div><div class="bd" style="display:grid;gap:10px">
+      <p class="note" style="margin:0">Edit the text below. Start a line with <b>##</b> for a heading, <b>1.</b> for a numbered item, <b>-</b> for a bullet, and put <b>**double stars**</b> around words to bold them. Leave a blank line between paragraphs. Escorts see changes right away. Their acknowledgment stays on file.</p>
+      <label class="f">Rules<textarea id="ru_text" rows="22" style="font-family:inherit">${esc(rulesText())}</textarea></label>
+      <label class="f">Closing line (shown under your contact info, above your name)<textarea id="ru_close" rows="2">${esc(rulesClosing())}</textarea></label>
+      <div class="row"><button class="btn primary" id="ru_save">Save rules</button><button class="btn" id="ru_reset">Reset to original</button><span class="note">Your name, phone and the acknowledge button are added automatically.</span></div>
+    </div></div>
+    <div class="panel"><div class="hd"><h3>Preview</h3><span class="note">As escorts see it</span></div><div class="bd" style="display:grid;gap:10px" id="ru_prev"></div></div></div>`;
+  const prev=()=>{ $("#ru_prev").innerHTML=renderRules($("#ru_text").value)+`<div><span class="btn primary" style="pointer-events:none">I have read and will follow these rules</span></div>`+($("#ru_close").value.trim()?`<p style="margin:0">${esc($("#ru_close").value.trim())}</p>`:""); };
+  prev(); $("#ru_text").oninput=prev; $("#ru_close").oninput=prev;
+  $("#ru_save").onclick=async()=>{ await patchSite({rulesText:$("#ru_text").value.trim(), rulesClosing:$("#ru_close").value.trim()}); };
+  $("#ru_reset").onclick=async()=>{ $("#ru_text").value=DEFAULT_RULES; $("#ru_close").value=DEFAULT_CLOSING; prev(); toast("Original text loaded. Tap Save rules to keep it."); };
+}
 /* ---------- derived ---------- */
 const list = k => Object.entries(S[k]).map(([id,v]) => ({id,...v}));
 const escorts = () => list("escorts").sort((a,b)=>(a.arriveAt||"9").localeCompare(b.arriveAt||"9") || (a.name||"").localeCompare(b.name||""));
@@ -409,7 +442,7 @@ function render(){
   const app=$("#app");
   if(!db){ app.innerHTML=`<div class="panel"><div class="empty-state"><strong>Loading…</strong><span>Connecting to the site board.</span></div></div>`; return; }
   if(viewMode==="escort") return renderEscortView(app);
-  ({overview:rOverview, week:rWeek, chat:rChat, dm:rDM, access:rAccess, pool:rPool, escorts:rEscorts, rooms:rRooms, cars:rCars, teams:rTeams, report:rReport, settings:rSettings})[tab](app);
+  ({overview:rOverview, week:rWeek, chat:rChat, dm:rDM, access:rAccess, pool:rPool, escorts:rEscorts, rooms:rRooms, cars:rCars, teams:rTeams, report:rReport, rules:rRules, settings:rSettings})[tab](app);
 }
 
 /* ---------- ADMIN: overview ---------- */
@@ -1604,7 +1637,7 @@ document.addEventListener("keydown",e=>{ if(e.key==="Escape") $("#modalRoot").in
 
 /* ---------- boot (Supabase) ---------- */
 $("#app").addEventListener("input", ()=>{ dirty=true; });
-const busy = () => !!$("#modalRoot").innerHTML || dirty || (viewMode==="admin"&&(tab==="settings"||tab==="report"||tab==="access"));
+const busy = () => !!$("#modalRoot").innerHTML || dirty || (viewMode==="admin"&&(tab==="settings"||tab==="report"||tab==="access"||tab==="rules"));
 let raf=0; const sched=()=>{ cancelAnimationFrame(raf); raf=requestAnimationFrame(()=>{ if(!busy()) render(); else renderHeader(); }); };
 const deep = o => JSON.parse(JSON.stringify(o ?? {}));
 function makeSnap(map){ const docs=Object.entries(map).map(([id,data])=>({id, exists:true, data:()=>deep(data)})); return {docs, size:docs.length, empty:!docs.length}; }
